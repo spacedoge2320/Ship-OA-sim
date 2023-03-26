@@ -48,26 +48,30 @@ class LOS_guidance():
         rotational_mul = angle_variance
 
         if (angle_variance) > (math.pi / 2):
-            rotational_mul = abs(angle_variance)
+            rotational_mul = abs((math.pi / 2))
         elif (angle_variance) < -(math.pi / 2):
-            rotational_mul = - abs(angle_variance)
+            rotational_mul = - abs((math.pi / 2))
 
         # rotational controller
         if abs(angle_variance) > 0.01 and abs(ship_rot_spd) <= abs(self.ship_ax_vel_lim):
-            ship_rot_spd -= (self.ship_ax_acc_lim * abs(rotational_mul / (math.pi / 2)) * (rotational_mul / (math.pi / 2)))/dt
+            ship_rot_spd -= (self.ship_ax_acc_lim * abs(rotational_mul / (math.pi / 2)) * (rotational_mul / (math.pi / 2)))*dt/4
         else:
-            ship_rot_spd = 0
+            ship_rot_spd += self.ship_ax_acc_lim*(ship_rot_spd/abs(ship_rot_spd))*dt
 
             # translational controller
-        if distance_to_target > 5:
+        if distance_to_target > 3.0:
             if ship_speed < self.ship_max_speed:
-                ship_speed += self.ship_lat_acc_pos_lim/dt
-            else: ship_speed -= self.ship_lat_acc_neg_lim/dt
-        elif distance_to_target > 0.2:
-            if ship_speed < self.ship_max_speed/5:
-                ship_speed += self.ship_lat_acc_pos_lim/(dt)
+                ship_speed += self.ship_lat_acc_pos_lim*dt
+            else: ship_speed -= self.ship_lat_acc_neg_lim*dt
+
+        elif distance_to_target >= 0.2:
+            if ship_speed < self.ship_max_speed/2:
+                ship_speed += self.ship_lat_acc_pos_lim*(dt)
             else:
-                ship_speed -= self.ship_lat_acc_neg_lim/(dt)
+                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
+
+            ship_rot_spd = 0
+
         elif distance_to_target < 0.2:
             ship_speed = 0
             ship_rot_spd = 0
@@ -78,7 +82,8 @@ class LOS_guidance():
 
         cmd_vel = [ship_vel, ship_rot_spd]
 
-        ##print("\rangle_variance, ship_rot_spd",angle_variance, ship_rot_spd, end="")
+        #print("\rangle_variance, ship_rot_spd", np.degrees(heading_in), ship_rot_spd, end="")
+        #print("\rTLeft, TRight", ship_speed, self.ship_max_speed, end="")
 
 
         return cmd_vel
@@ -94,18 +99,9 @@ class LOS_VO_guidance():
         self.ship_ax_acc_lim = params['ship_ax_acc_lim']
         self.T_max_thrust = params['T_max_thrust']
         self.T_min_thrust = params['T_min_thrust']
+        self.detection_range = 7
 
-
-        self.obstacle_range = 400
-        self.ship_max_speed = 1.0
-        self.ship_rot_spd = 0.0
-        self.ship_rot_lim = 0.015
-        self.ship_accel_pos_lim = 0.1
-        self.ship_accel_neg_lim = 0.1
-        self.ship_rot_accel_lim = 0.00015
-        self.ship_points = [(20, 0), (10, -10), (-20, -10), (-20, 10), (10, 10)]
-        self.sensor_data = None
-        self.detection_range = 10
+        self.los = LOS_guidance(params)
 
 
         #parameters
@@ -132,8 +128,8 @@ class LOS_VO_guidance():
 
         guidance_params = {
             "initial_ship_speed": 0.0,
-            "ship_max_speed": 10.0,
-            "ship_ax_vel_lim": 0.25,
+            "ship_max_speed": 3.0,
+            "ship_ax_vel_lim": 0.9,
             "ship_lat_acc_pos_lim": 0.9,
             "ship_lat_acc_neg_lim": 0.05,
             "ship_ax_acc_lim": 0.15,
@@ -142,10 +138,7 @@ class LOS_VO_guidance():
             "dt": 1 / 144
         }
 
-
-        los = LOS_guidance(guidance_params)
-
-        cmd_vel = los.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 144)
+        cmd_vel = self.los.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 144)
 
 
         return cmd_vel
@@ -171,27 +164,36 @@ class LOS_VO_guidance():
         self.vo_lines = []
         self.vo_lines.append([ship_pos,ship_pos+ship_vel*5])
 
+        circle_color = (200, 200, 200, 255)
+        line_width = 1
+        circle = [ship_pos, ship_spd*5, circle_color, line_width]  # object circle position
+        self.vo_circles.append(circle)  # circle representing collision distance of the object
+
+
         if self.filtered_objects != None:
             for key, object in self.filtered_objects.items():
 
-                object_pos = object[0].phys_status["pose"][0]
-                object_radius = object[1] + object[2]
-
-                circle = [object_pos, object_radius]
-
-                self.vo_circles.append(circle)
-
-
-
+                object_pos = object[0].phys_status["pose"][0]  # absolute object position
+                object_vel = object[0].phys_status["velocity"][0]  # absolute object velocity
+                object_radius = object[1] + object[2]  # object VO_circle radius
+                circle_color = (200, 0, 0, 255)
+                line_width = 1
+                circle = [object_pos, object_radius, circle_color, line_width]  # object circle position
+                self.vo_circles.append(circle)  # circle representing collision distance of the object
                 pos_diff = object_pos - ship_pos
 
-                object_distance = abs(np.linalg.norm(pos_diff))
+                object_distance = abs(np.linalg.norm(pos_diff))  # distance from the object to the circle
 
-                if object_distance == 0:
+                rel_vel = np.linalg.norm(object[0].phys_status["velocity"][0]-ship_vel)
+                time_till_collision = object_distance/rel_vel  # estimated time till collision, assuming constant relative velocity
+
+
+
+
+                if object_distance == 0:  # for avoiding divide by zero error
                     object_distance = 0.1
 
-
-                if object_radius >= object_distance:
+                if object_radius >= object_distance:  # for avoiding divide by zero error
                     object_radius = object_distance - 0.0001
 
                 tangent_angle = math.asin(object_radius/object_distance)
@@ -205,7 +207,12 @@ class LOS_VO_guidance():
 
                 #self.vo_cones.append([ship_pos, [start_rad, end_rad], object_distance*math.cos(tangent_angle)])
 
-                self.vo_cones.append([ship_pos+object_velocity*5, [start_rad, end_rad], ship_spd*5])
+                self.vo_cones.append([ship_pos+object_velocity*5, [start_rad, end_rad], object_distance])
+                self.vo_circles.append(circle)
+
+
+
+
 
 
 

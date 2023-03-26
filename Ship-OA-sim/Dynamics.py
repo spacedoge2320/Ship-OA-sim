@@ -17,24 +17,6 @@ class water_dynamics():
     def dynamics(self, ship_phys_status, TR, TL, dt=1 / 144):
         # this method simulates the dynamics of a boat. input = thrusts of the thrusters, output = velocity
         # cmd_acc = [[velx,vely], axial_vel] x is relative.
-        def divide_vector(A, B):
-            # Normalize vectors
-            A_norm = np.linalg.norm(A)
-            B_norm = np.linalg.norm(B)
-            if A_norm == 0:
-                A_unit = np.array([0, 0])
-            else:
-                A_unit = A / A_norm
-            B_unit = B / B_norm
-
-            # Project A onto B
-            C_mag = np.dot(A_unit, B_unit) * A_norm
-            C = C_mag * B_unit
-
-            # Subtract C from A to get D
-            D = A - C
-
-            return C, D
 
         self.ship_phys_status = ship_phys_status
 
@@ -56,15 +38,33 @@ class water_dynamics():
         if(np.linalg.norm(ship_vel[0])==0 ):
             [vel_heading, vel_norm_heading] = [np.array([0,0]),np.array([0,0])]
 
-        [vel_heading, vel_norm_heading] = divide_vector(ship_vel[0],ship_pose[0])
+        heading = np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])])
+        heading_angle = math.atan2(heading[1],heading[0])
+        velocity_angle = math.atan2(ship_vel[0][1],ship_vel[0][0])
 
-        spd_heading = np.linalg.norm(vel_heading)
-        spd_norm_heading = np.linalg.norm(vel_norm_heading)
+        delta_angle = (velocity_angle-heading_angle)
 
-        dir_heading = np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])]) ##normalize velocity
-        dir_norm_heading = np.array([math.cos(ship_pose[1]+math.pi/2), math.sin(ship_pose[1])+math.pi/2])
 
-        drag_lat_force = -(self.inline_drag_coefficient * (dir_heading*spd_heading*spd_heading)) #+ (self.sideways_drag_coefficient * ((dir_norm_heading*spd_norm_heading*spd_norm_heading)))
+        while delta_angle >= 1 * math.pi:
+            delta_angle = delta_angle - 2 * math.pi
+
+
+        #print(delta_angle)
+
+        #[vel_heading, vel_norm_heading] = divide_vector(ship_vel[0], heading
+
+        spd_heading = math.cos(-delta_angle)*np.linalg.norm(ship_vel[0])
+        spd_norm_heading = math.sin(delta_angle)*np.linalg.norm(ship_vel[0])
+
+        if delta_angle < 0 :
+            dir_norm_heading = heading_angle+math.pi/2
+        elif delta_angle >= 0 :
+            dir_norm_heading = heading_angle-math.pi/2
+
+        dir_norm_heading_vector = np.array([math.cos(dir_norm_heading),math.sin(dir_norm_heading)])
+
+
+        drag_lat_force = - (self.inline_drag_coefficient * (heading*spd_heading*spd_heading)) + (self.sideways_drag_coefficient * ((dir_norm_heading_vector*spd_norm_heading*spd_norm_heading)))
         drag_torque = -self.rotational_drag_coefficient * vtheta * abs(vtheta)
 
         # TOTAL FORCE
@@ -75,10 +75,15 @@ class water_dynamics():
         lat_accel = total_force / self.mass
         ax_accel = total_torque / self.Izz
 
-        # VELOCITY
-        lat_vel = lat_accel * dt
-        ac_vel = ax_accel * dt
+        #print("\r", math.degrees(math.atan2(vel_heading[0],vel_heading[1]))-math.atan2(vel_norm_heading[0],vel_norm_heading[1]), (self.sideways_drag_coefficient * np.linalg.norm((dir_norm_heading*spd_norm_heading*spd_norm_heading))),end="")
 
-        self.ship_phys_status['velocity'] = [lat_vel, ac_vel]
+
+        # VELOCITY
+        lat_vel = ship_vel[0] + lat_accel * dt
+        ax_vel = ship_vel[1] + ax_accel * dt
+
+        #print("\rTLeft, TRight", drag_lat_force, end="")
+
+        self.ship_phys_status['velocity'] = [lat_vel, ax_vel]
 
         return self.ship_phys_status

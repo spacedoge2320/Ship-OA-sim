@@ -29,33 +29,34 @@ class USV(object):
         self.ship_scaled_pose = [ship_lat_pose * self.scale, ship_ax_pose]
         self.thrust = [0, 0]
 
-        self.T_max_thrust = 600
-        self.T_min_thrust = -600
+        self.T_max_thrust = 60
+        self.T_min_thrust = -60
         self.T2CL_dist = 0.4
 
         # controller settings
         controller_params = {
-            'Kp_lin': 2.0,
+            'Kp_lin': 9.0,
             'Ki_lin': 2.0,
             'Kd_lin': 0.0,
-            'Kp_ang': 4.0,
+            'Kp_ang': 9.0,
             'Ki_ang': 4.0,
             'Kd_ang': 0.04,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
-            'rot_thrust_weight': 1,
-            'thrust_multiplier': 32.0
+            'rot_thrust_weight': 500,
+            'thrust_multiplier': 3.0
         }
         self.controller = Controllers.Pid_vel_controller(controller_params)
+        self.prev_outputs = []
 
         # dynamics settings
         # 40px = 1m
         dynamics_params = {
             "mass": 10,
             "Izz": 1.25,
-            "inline_drag_coefficient": 400,
+            "inline_drag_coefficient": 5,
             "sideways_drag_coefficient": 1000,
-            "rotational_drag_coefficient": 10,
+            "rotational_drag_coefficient": 100,
             "T2CL_dist": 0.5
         }
         self.dynamics = Dynamics.water_dynamics(dynamics_params)
@@ -66,10 +67,10 @@ class USV(object):
             # guidance settings
             guidance_params = {
                 "initial_ship_speed": 0.0,
-                "ship_max_speed": 3.0,
-                "ship_ax_vel_lim": 0.25,
-                "ship_lat_acc_pos_lim": 0.9,
-                "ship_lat_acc_neg_lim": 0.05,
+                "ship_max_speed": 1.0,
+                "ship_ax_vel_lim": 0.5,
+                "ship_lat_acc_pos_lim": 0.6,
+                "ship_lat_acc_neg_lim": 0.6,
                 "ship_ax_acc_lim": 0.15,
                 "T_max_thrust": self.T_max_thrust,
                 "T_min_thrust": self.T_min_thrust,
@@ -81,10 +82,10 @@ class USV(object):
             # guidance settings
             guidance_params = {
                 "initial_ship_speed": 0.0,
-                "ship_max_speed": 3.0,
-                "ship_ax_vel_lim": 0.25,
-                "ship_lat_acc_pos_lim": 0.9,
-                "ship_lat_acc_neg_lim": 0.05,
+                "ship_max_speed": 1,
+                "ship_ax_vel_lim": 0.5,
+                "ship_lat_acc_pos_lim": 0.6,
+                "ship_lat_acc_neg_lim": 0.6,
                 "ship_ax_acc_lim": 0.15,
                 "T_max_thrust": self.T_max_thrust,
                 "T_min_thrust": self.T_min_thrust,
@@ -211,7 +212,7 @@ class USV(object):
         # thrust_jerk_limiter
 
         thrust_range = self.T_max_thrust - self.T_min_thrust
-        max_thrust_jerk = thrust_range/10
+        max_thrust_jerk = thrust_range/1
 
         self.thrust[0] = max(min(self.thrust[0], (prior_thrust[0] + max_thrust_jerk)), (prior_thrust[0] - max_thrust_jerk))
         self.thrust[1] = max(min(self.thrust[1], (prior_thrust[1] + max_thrust_jerk)),

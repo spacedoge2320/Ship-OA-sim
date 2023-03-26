@@ -2,29 +2,6 @@ import math
 import numpy as np
 
 
-class LowPassFilter:
-    def __init__(self, alpha, n):
-        self.alpha = alpha
-        self.n = n
-        self.prev_outputs = []
-
-    def filter(self, input):
-        if len(self.prev_outputs) == 0:
-            # First input, output equals input
-            output = input
-        else:
-            # Apply low-pass filter to input
-            output = self.alpha * input + (1 - self.alpha) * self.prev_outputs[-1]
-
-        # Update previous outputs
-        if len(self.prev_outputs) >= self.n:
-            self.prev_outputs.pop(0)
-        self.prev_outputs.append(output)
-
-        return output
-
-
-
 class PIDController:
     def __init__(self, Kp, Ki, Kd):
         self.Kp = Kp
@@ -32,6 +9,10 @@ class PIDController:
         self.Kd = Kd
         self.prev_error = 0.0
         self.integral = 0.0
+
+
+
+
 
 
     def compute(self, error, dt):
@@ -47,7 +28,7 @@ class Pid_vel_controller():
     # Receives CMD_VEL and outputs translational and angular accelerations
     def __init__(self, params):
         self.prior_thrust = [0, 0]
-        self.Kp_lin  = params['Kp_lin']
+        self.Kp_lin = params['Kp_lin']
         self.Ki_lin = params['Ki_lin']
         self.Kd_lin = params['Kd_lin']
         self.Kp_ang = params['Kp_ang']
@@ -57,6 +38,12 @@ class Pid_vel_controller():
         self.MIN_THRUST = params['MIN_THRUST']
         self.rot_thrust_weight = params['rot_thrust_weight']
         self.thrust_multiplier = params['thrust_multiplier']
+
+        self.prev_outputs1 = []
+        self.prev_outputs2 = []
+
+        self.alpha = 0.2
+        self.n = 10
 
 
     def pid_tune_velocity(self, ship_phys_status,cmd_vel,dt=1/144,log = False):
@@ -77,42 +64,60 @@ class Pid_vel_controller():
         pid_ang = PIDController(self.Kp_ang, self.Ki_ang, self.Kd_ang)
 
         # Compute control outputs for linear and angular velocities
-        accel_lin = pid_lin.compute(error_lin_vel, dt)*0.1
-        accel_ang = pid_ang.compute(error_ang_vel, dt)*2
+        accel_lin = pid_lin.compute(error_lin_vel, dt)*100
+        accel_ang = pid_ang.compute(error_ang_vel, dt)
 
-
-        TRight = ((accel_lin + (0.8 / 2 * accel_ang*self.rot_thrust_weight)) / 2)*self.thrust_multiplier
-        TLeft = ((accel_lin - (0.8 / 2 * accel_ang*self.rot_thrust_weight)) / 2)*self.thrust_multiplier
+        TRight = ((accel_lin + (accel_ang*self.rot_thrust_weight)))*self.thrust_multiplier
+        TLeft = ((accel_lin - (accel_ang*self.rot_thrust_weight)))*self.thrust_multiplier
 
         # Limit the thrust values to the maximum and minimum values
         TRight = max(min(TRight, self.MAX_THRUST), self.MIN_THRUST)
         TLeft = max(min(TLeft, self.MAX_THRUST), self.MIN_THRUST)
 
-        Thrust = [TRight,TLeft]
 
-
-
-        """
-        Diff_x = TRight - self.prior_thrust[1]
-        Diff_y = TLeft - self.prior_thrust[0]
-
-        Diff_x = max(min(Diff_x , MAX_thrust_diff), -MAX_thrust_diff)
-        Diff_y = max(min(Diff_y, MAX_thrust_diff), -MAX_thrust_diff)
-
-        TRight = self.prior_thrust[1] + Diff_x
-        TLeft = self.prior_thrust[0] + Diff_y
-        """
-
-        #if log == True:
-         #   print("\rTLeft, TRight", TLeft, TRight, end="")
 
         # Example usage
-        left_filter = LowPassFilter(alpha=10, n=20)
 
-        right_filter = LowPassFilter(alpha=10, n=20)
+        TLeft = self.filter1(TLeft)
+        TRight = self.filter2(TRight)
 
-        TLeft = left_filter.filter(TLeft)
-        TRight = right_filter.filter(TRight)
+        if log == True:
+            print("\rTLeft, TRight", cmd_vel, TLeft, TRight, end="")
 
 
         return [TLeft, TRight]
+
+
+    def filter1(self, input):
+        if len(self.prev_outputs1) <= 9:
+            # First input, output equals input
+            self.output1 = input
+        else:
+            # Apply low-pass filter to input
+            self.output1 = self.alpha * input + (1 - self.alpha) * np.mean(self.prev_outputs1[0:-1])
+
+        # Update previous outputs
+        if len(self.prev_outputs1) >= self.n:
+            self.prev_outputs1.pop(0)
+
+        self.prev_outputs1.append(self.output1)
+
+
+
+        return self.output1
+
+    def filter2(self, input):
+        if len(self.prev_outputs2) <= 9:
+            # First input, output equals input
+            self.output2 = input
+        else:
+            # Apply low-pass filter to input
+            self.output2 = self.alpha * input + (1 - self.alpha) * np.mean(self.prev_outputs2[0:-1])
+
+        # Update previous outputs
+        if len(self.prev_outputs2) >= self.n:
+            self.prev_outputs2.pop(0)
+
+        self.prev_outputs2.append(self.output2)
+
+        return self.output2
