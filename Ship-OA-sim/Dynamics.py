@@ -35,37 +35,54 @@ class water_dynamics():
         # heading 반대의 속도 도출, heading 반대방향의 벡터로 변환, vel_norm_heading)
         # vel_heading 에 대해 inline_drag_coefficient 의 항력 적용, vel_norm_heading 에 대해 sideways_drag_coefficient 항력 적용
         # 두 항력 값 합쳐서 합력 도출
-        if(np.linalg.norm(ship_vel[0])==0 ):
+
+        if(np.linalg.norm(ship_vel[0]) > 0.1):
             [vel_heading, vel_norm_heading] = [np.array([0,0]),np.array([0,0])]
 
-        heading = np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])])
-        heading_angle = math.atan2(heading[1],heading[0])
-        velocity_angle = math.atan2(ship_vel[0][1],ship_vel[0][0])
+            heading = np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])])
+            heading_angle = math.atan2(heading[1],heading[0])
+            velocity_angle = math.atan2(ship_vel[0][1],ship_vel[0][0])
 
-        delta_angle = (velocity_angle-heading_angle)
+            delta_angle = (velocity_angle-heading_angle)
 
+            while delta_angle >= 1 * math.pi:
+                delta_angle = delta_angle - 2 * math.pi
 
-        while delta_angle >= 1 * math.pi:
-            delta_angle = delta_angle - 2 * math.pi
-
-
-        #print(delta_angle)
-
-        #[vel_heading, vel_norm_heading] = divide_vector(ship_vel[0], heading
-
-        spd_heading = math.cos(-delta_angle)*np.linalg.norm(ship_vel[0])
-        spd_norm_heading = math.sin(delta_angle)*np.linalg.norm(ship_vel[0])
-
-        if delta_angle < 0 :
-            dir_norm_heading = heading_angle+math.pi/2
-        elif delta_angle >= 0 :
-            dir_norm_heading = heading_angle-math.pi/2
-
-        dir_norm_heading_vector = np.array([math.cos(dir_norm_heading),math.sin(dir_norm_heading)])
+            spd_heading = math.cos(-delta_angle)*np.linalg.norm(ship_vel[0])
+            if np.linalg.norm(ship_vel[0]) > 0.1:
+                spd_norm_heading = math.sin(delta_angle) * np.linalg.norm(ship_vel[0])
+            else: spd_norm_heading = 0
 
 
-        drag_lat_force = - (self.inline_drag_coefficient * (heading*spd_heading*spd_heading)) + (self.sideways_drag_coefficient * ((dir_norm_heading_vector*spd_norm_heading*spd_norm_heading)))
-        drag_torque = -self.rotational_drag_coefficient * vtheta * abs(vtheta)
+            print(spd_heading)
+
+            dir_norm_heading = 0
+
+            if delta_angle >= math.pi/2 - 0.001:
+                delta_angle = math.pi/2 - 0.001
+
+            if delta_angle <= -math.pi/2 + 0.001:
+                delta_angle = -math.pi/2 + 0.001
+
+            if delta_angle < 0 :
+                dir_norm_heading = heading_angle+math.pi/2
+            elif delta_angle >= 0 :
+                dir_norm_heading = heading_angle-math.pi/2
+
+            dir_norm_heading_vector = np.array([math.cos(dir_norm_heading), math.sin(dir_norm_heading)])
+
+            drag_lat_force = - (self.inline_drag_coefficient * (heading*spd_heading*spd_heading)) + (self.sideways_drag_coefficient * ((dir_norm_heading_vector*spd_norm_heading*spd_norm_heading)))
+
+        else:
+            drag_lat_force = np.array([0.0,0.0])
+
+
+
+        if (abs(ship_vel[1]) > 0.01):
+            drag_torque = -self.rotational_drag_coefficient * vtheta * abs(vtheta)
+        else:
+            drag_torque = 0
+
 
         # TOTAL FORCE
         total_force = thrust_force + drag_lat_force
@@ -75,14 +92,11 @@ class water_dynamics():
         lat_accel = total_force / self.mass
         ax_accel = total_torque / self.Izz
 
-        #print("\r", math.degrees(math.atan2(vel_heading[0],vel_heading[1]))-math.atan2(vel_norm_heading[0],vel_norm_heading[1]), (self.sideways_drag_coefficient * np.linalg.norm((dir_norm_heading*spd_norm_heading*spd_norm_heading))),end="")
-
-
         # VELOCITY
         lat_vel = ship_vel[0] + lat_accel * dt
         ax_vel = ship_vel[1] + ax_accel * dt
 
-        #print("\rTLeft, TRight", drag_lat_force, end="")
+        #print("\ncmd_vel, TLeft, TRight",dir_norm_heading_vector, end="")
 
         self.ship_phys_status['velocity'] = [lat_vel, ax_vel]
 

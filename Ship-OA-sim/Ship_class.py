@@ -29,22 +29,22 @@ class USV(object):
         self.ship_scaled_pose = [ship_lat_pose * self.scale, ship_ax_pose]
         self.thrust = [0, 0]
 
-        self.T_max_thrust = 60
-        self.T_min_thrust = -60
+        self.T_max_thrust = 40
+        self.T_min_thrust = -40
         self.T2CL_dist = 0.4
 
         # controller settings
         controller_params = {
-            'Kp_lin': 9.0,
-            'Ki_lin': 2.0,
-            'Kd_lin': 0.0,
-            'Kp_ang': 9.0,
-            'Ki_ang': 4.0,
+            'Kp_lin': 0.3,
+            'Ki_lin': 0.1,
+            'Kd_lin': 0.001,
+            'Kp_ang': 0.2,
+            'Ki_ang': 0.1,
             'Kd_ang': 0.04,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
             'rot_thrust_weight': 500,
-            'thrust_multiplier': 3.0
+            'thrust_multiplier': 700.0
         }
         self.controller = Controllers.Pid_vel_controller(controller_params)
         self.prev_outputs = []
@@ -54,7 +54,7 @@ class USV(object):
         dynamics_params = {
             "mass": 10,
             "Izz": 1.25,
-            "inline_drag_coefficient": 5,
+            "inline_drag_coefficient": 100,
             "sideways_drag_coefficient": 1000,
             "rotational_drag_coefficient": 100,
             "T2CL_dist": 0.5
@@ -63,34 +63,22 @@ class USV(object):
 
         self.guidance_type = guidance_type
 
-        if guidance_type == 1:
-            # guidance settings
-            guidance_params = {
-                "initial_ship_speed": 0.0,
-                "ship_max_speed": 1.0,
-                "ship_ax_vel_lim": 0.5,
-                "ship_lat_acc_pos_lim": 0.6,
-                "ship_lat_acc_neg_lim": 0.6,
-                "ship_ax_acc_lim": 0.15,
-                "T_max_thrust": self.T_max_thrust,
-                "T_min_thrust": self.T_min_thrust,
-                "dt": 1 / 144
-            }
-            self.guidance = Guidance_algorithms.LOS_guidance(guidance_params)
+        # guidance settings
+        guidance_params = {
+            "initial_ship_speed": 0.0,
+            "ship_max_speed": 2.0,
+            "ship_ax_vel_lim": 0.5,
+            "ship_lat_acc_pos_lim": 0.1,
+            "ship_lat_acc_neg_lim": 0.1,
+            "ship_ax_acc_lim": 0.15,
+            "T_max_thrust": self.T_max_thrust,
+            "T_min_thrust": self.T_min_thrust,
+            "dt": 1 / 144
+        }
 
+        if guidance_type == 1:
+            self.guidance = Guidance_algorithms.LOS_guidance(guidance_params)
         elif guidance_type == 2:
-            # guidance settings
-            guidance_params = {
-                "initial_ship_speed": 0.0,
-                "ship_max_speed": 1,
-                "ship_ax_vel_lim": 0.5,
-                "ship_lat_acc_pos_lim": 0.6,
-                "ship_lat_acc_neg_lim": 0.6,
-                "ship_ax_acc_lim": 0.15,
-                "T_max_thrust": self.T_max_thrust,
-                "T_min_thrust": self.T_min_thrust,
-                "dt": 1 / 144
-            }
             self.guidance = Guidance_algorithms.LOS_VO_guidance(guidance_params)
 
     def scale_and_rotate_polygons(self):

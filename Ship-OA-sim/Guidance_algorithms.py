@@ -41,13 +41,20 @@ class LOS_guidance():
         distance_to_target = math.sqrt(
             (target_pos[0] - ship_position[0]) ** 2 + (target_pos[1] - ship_position[1]) ** 2)
 
+        if not (distance_to_target >= -1 and distance_to_target <= 10000):
+            angle_variance = 0
+
+
         target_angle = (target_pos - ship_position)
 
         angle_variance = angle_between_vector_and_angle(target_angle, ship_heading)
 
         rotational_mul = angle_variance
 
-        if (angle_variance) > (math.pi / 2):
+        if not (angle_variance >= -10 and angle_variance <= 10):
+            angle_variance = 0
+
+        if (angle_variance) > (math.pi / 4):
             rotational_mul = abs((math.pi / 2))
         elif (angle_variance) < -(math.pi / 2):
             rotational_mul = - abs((math.pi / 2))
@@ -59,20 +66,33 @@ class LOS_guidance():
             ship_rot_spd += self.ship_ax_acc_lim*(ship_rot_spd/abs(ship_rot_spd))*dt
 
             # translational controller
-        if distance_to_target > 3.0:
+        if distance_to_target > 3:
             if ship_speed < self.ship_max_speed:
                 ship_speed += self.ship_lat_acc_pos_lim*dt
             else: ship_speed -= self.ship_lat_acc_neg_lim*dt
 
-        elif distance_to_target >= 0.2:
-            if ship_speed < self.ship_max_speed/2:
+        elif distance_to_target >= 1:
+            if ship_speed < self.ship_max_speed/4:
                 ship_speed += self.ship_lat_acc_pos_lim*(dt)
             else:
                 ship_speed -= self.ship_lat_acc_neg_lim*(dt)
 
+        elif distance_to_target >= 0.7:
+            if ship_speed < self.ship_max_speed/8:
+                ship_speed += self.ship_lat_acc_pos_lim*(dt)
+            else:
+                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
+
+        elif distance_to_target >= 0.3:
+            if ship_speed < self.ship_max_speed/50:
+                ship_speed += self.ship_lat_acc_pos_lim*(dt)
+            elif ship_speed > -self.ship_max_speed/50:
+                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
+            else: ship_speed = 0
+
             ship_rot_spd = 0
 
-        elif distance_to_target < 0.2:
+        else:
             ship_speed = 0
             ship_rot_spd = 0
 
