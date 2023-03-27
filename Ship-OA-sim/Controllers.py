@@ -73,7 +73,7 @@ class Pid_vel_controller():
             accel_ang = pid_ang.compute(error_ang_vel, dt)
 
         if cmd_lin_vel == 0:
-            accel_lin = 0
+            accel_lin = pid_lin.compute(error_lin_vel, dt)*10
 
         #accel_ang = 100000*error_ang_vel*abs(error_ang_vel)
 
@@ -83,18 +83,18 @@ class Pid_vel_controller():
 
 
         # Limit the thrust values to the maximum and minimum values
-        #TRight = max(min(TRight, self.MAX_THRUST), self.MIN_THRUST)
-        #TLeft = max(min(TLeft, self.MAX_THRUST), self.MIN_THRUST)
+        TRight = max(min(TRight, self.MAX_THRUST), self.MIN_THRUST)
+        TLeft = max(min(TLeft, self.MAX_THRUST), self.MIN_THRUST)
 
 
 
         # Example usage
 
-        TLeft = self.filter1(TLeft)
-        TRight = self.filter2(TRight)
+        #TLeft = self.filter1(TLeft)
+        #TRight = self.filter2(TRight)
 
         if log == True:
-            print("\ncmd_vel, TLeft, TRight", cmd_vel, TLeft, TRight, end=" ")
+            print("\rcmd_vel, TLeft, TRight", cmd_vel, TLeft, TRight, end=" ")
 
         return [TLeft, TRight]
 

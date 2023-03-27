@@ -36,7 +36,8 @@ class water_dynamics():
         # vel_heading 에 대해 inline_drag_coefficient 의 항력 적용, vel_norm_heading 에 대해 sideways_drag_coefficient 항력 적용
         # 두 항력 값 합쳐서 합력 도출
 
-        if(np.linalg.norm(ship_vel[0]) > 0.1):
+        if(np.linalg.norm(ship_vel[0]) > 0.0):
+
             [vel_heading, vel_norm_heading] = [np.array([0,0]),np.array([0,0])]
 
             heading = np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])])
@@ -47,38 +48,50 @@ class water_dynamics():
 
             while delta_angle >= 1 * math.pi:
                 delta_angle = delta_angle - 2 * math.pi
+            while delta_angle <= -1 * math.pi:
+                delta_angle = delta_angle + 2 * math.pi
+
 
             spd_heading = math.cos(-delta_angle)*np.linalg.norm(ship_vel[0])
-            if np.linalg.norm(ship_vel[0]) > 0.1:
+            if np.linalg.norm(ship_vel[0]) > 0.01:
                 spd_norm_heading = math.sin(delta_angle) * np.linalg.norm(ship_vel[0])
-            else: spd_norm_heading = 0
+            else:
+                spd_norm_heading = 0
 
 
-            print(spd_heading)
 
-            dir_norm_heading = 0
-
-            if delta_angle >= math.pi/2 - 0.001:
-                delta_angle = math.pi/2 - 0.001
-
-            if delta_angle <= -math.pi/2 + 0.001:
-                delta_angle = -math.pi/2 + 0.001
-
-            if delta_angle < 0 :
+            if delta_angle < -0.01 :
                 dir_norm_heading = heading_angle+math.pi/2
-            elif delta_angle >= 0 :
+                #print("  mode 1",delta_angle)
+            elif delta_angle > 0.01 :
                 dir_norm_heading = heading_angle-math.pi/2
+                #print(" mode 2")
+            else :
+                dir_norm_heading = 0
+                spd_norm_heading = 0
+                #print(" mode 3")
 
             dir_norm_heading_vector = np.array([math.cos(dir_norm_heading), math.sin(dir_norm_heading)])
 
-            drag_lat_force = - (self.inline_drag_coefficient * (heading*spd_heading*spd_heading)) + (self.sideways_drag_coefficient * ((dir_norm_heading_vector*spd_norm_heading*spd_norm_heading)))
+            drag_inline_force = - (self.inline_drag_coefficient * (heading*spd_heading*spd_heading))
+            drag_sideways_force = (self.sideways_drag_coefficient * ((dir_norm_heading_vector*spd_norm_heading*spd_norm_heading)))
+
+            #if np.linalg.norm(drag_sideways_force) > 1000:
+                #drag_sideways_force = np.array([0.0, 0.0])
+
+            if np.linalg.norm(drag_inline_force) > 10000:
+                drag_inline_force = np.array([0.0, 0.0])
+
+            #print("\ncmd_vel, TLeft, TRight", dir_norm_heading, dir_norm_heading_vector, spd_norm_heading, end="")
 
         else:
-            drag_lat_force = np.array([0.0,0.0])
+            drag_sideways_force = np.array([0.0,0.0])
+            drag_inline_force = np.array([0.0,0.0])
+
+        drag_lat_force = drag_inline_force + drag_sideways_force
 
 
-
-        if (abs(ship_vel[1]) > 0.01):
+        if (abs(ship_vel[1]) > 0):
             drag_torque = -self.rotational_drag_coefficient * vtheta * abs(vtheta)
         else:
             drag_torque = 0
@@ -96,7 +109,7 @@ class water_dynamics():
         lat_vel = ship_vel[0] + lat_accel * dt
         ax_vel = ship_vel[1] + ax_accel * dt
 
-        #print("\ncmd_vel, TLeft, TRight",dir_norm_heading_vector, end="")
+
 
         self.ship_phys_status['velocity'] = [lat_vel, ax_vel]
 

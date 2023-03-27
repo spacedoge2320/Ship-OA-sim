@@ -36,7 +36,7 @@ class LOS_guidance():
 
         ship_heading = heading_in
         ship_rot_spd = ship_rot_spd_in
-        ship_speed = ship_speed_in
+        ship_speed = 0
 
         distance_to_target = math.sqrt(
             (target_pos[0] - ship_position[0]) ** 2 + (target_pos[1] - ship_position[1]) ** 2)
@@ -61,37 +61,17 @@ class LOS_guidance():
 
         # rotational controller
         if abs(angle_variance) > 0.01 and abs(ship_rot_spd) <= abs(self.ship_ax_vel_lim):
-            ship_rot_spd -= (self.ship_ax_acc_lim * abs(rotational_mul / (math.pi / 2)) * (rotational_mul / (math.pi / 2)))*dt/4
+            ship_rot_spd = -(rotational_mul / (math.pi / 2))*10
         else:
-            ship_rot_spd += self.ship_ax_acc_lim*(ship_rot_spd/abs(ship_rot_spd))*dt
+            ship_rot_spd = 0
 
             # translational controller
         if distance_to_target > 3:
-            if ship_speed < self.ship_max_speed:
-                ship_speed += self.ship_lat_acc_pos_lim*dt
-            else: ship_speed -= self.ship_lat_acc_neg_lim*dt
-
+            ship_speed = self.ship_max_speed
         elif distance_to_target >= 1:
-            if ship_speed < self.ship_max_speed/4:
-                ship_speed += self.ship_lat_acc_pos_lim*(dt)
-            else:
-                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
-
-        elif distance_to_target >= 0.7:
-            if ship_speed < self.ship_max_speed/8:
-                ship_speed += self.ship_lat_acc_pos_lim*(dt)
-            else:
-                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
-
-        elif distance_to_target >= 0.3:
-            if ship_speed < self.ship_max_speed/50:
-                ship_speed += self.ship_lat_acc_pos_lim*(dt)
-            elif ship_speed > -self.ship_max_speed/50:
-                ship_speed -= self.ship_lat_acc_neg_lim*(dt)
-            else: ship_speed = 0
-
-            ship_rot_spd = 0
-
+            ship_speed = self.ship_max_speed/2
+        elif distance_to_target >= 0.5:
+            ship_speed = self.ship_max_speed/4
         else:
             ship_speed = 0
             ship_rot_spd = 0
@@ -103,7 +83,7 @@ class LOS_guidance():
         cmd_vel = [ship_vel, ship_rot_spd]
 
         #print("\rangle_variance, ship_rot_spd", np.degrees(heading_in), ship_rot_spd, end="")
-        #print("\rTLeft, TRight", ship_speed, self.ship_max_speed, end="")
+        #print("\rTLeft, TRight", rTLeft.TRight, end="")
 
 
         return cmd_vel
@@ -120,6 +100,7 @@ class LOS_VO_guidance():
         self.T_max_thrust = params['T_max_thrust']
         self.T_min_thrust = params['T_min_thrust']
         self.detection_range = 7
+        self.spd_visual_multiplier = 5
 
         self.los = LOS_guidance(params)
 
@@ -139,7 +120,7 @@ class LOS_VO_guidance():
         self.vo_circles = [] #position and radius
         self.vo_cones = []
 
-        self.vo_algorithm()
+        self.vo_cone_generator()
 
 
 
@@ -176,17 +157,17 @@ class LOS_VO_guidance():
         # it finally outputs CMD_vel, to be subscribed by
         pass
 
-    def vo_algorithm(self):
+    def vo_cone_generator(self):
         ship_pos = self.phys_status["pose"][0]
         ship_vel = self.phys_status["velocity"][0]
         ship_spd = abs(np.linalg.norm(self.phys_status["velocity"][0]))
 
         self.vo_lines = []
-        self.vo_lines.append([ship_pos,ship_pos+ship_vel*5])
+        self.vo_lines.append([ship_pos,ship_pos+ship_vel*self.spd_visual_multiplier])
 
         circle_color = (200, 200, 200, 255)
         line_width = 1
-        circle = [ship_pos, ship_spd*5, circle_color, line_width]  # object circle position
+        circle = [ship_pos, ship_spd*self.spd_visual_multiplier, circle_color, line_width]  # object circle position
         self.vo_circles.append(circle)  # circle representing collision distance of the object
 
 
@@ -204,11 +185,8 @@ class LOS_VO_guidance():
 
                 object_distance = abs(np.linalg.norm(pos_diff))  # distance from the object to the circle
 
-                rel_vel = np.linalg.norm(object[0].phys_status["velocity"][0]-ship_vel)
-                time_till_collision = object_distance/rel_vel  # estimated time till collision, assuming constant relative velocity
-
-
-
+                rel_spd = np.linalg.norm(object[0].phys_status["velocity"][0]-ship_vel)
+                time_till_collision = object_distance/rel_spd  # estimated time till collision, assuming constant relative velocity
 
                 if object_distance == 0:  # for avoiding divide by zero error
                     object_distance = 0.1
@@ -227,17 +205,27 @@ class LOS_VO_guidance():
 
                 #self.vo_cones.append([ship_pos, [start_rad, end_rad], object_distance*math.cos(tangent_angle)])
 
-                self.vo_cones.append([ship_pos+object_velocity*5, [start_rad, end_rad], object_distance])
+                self.vo_cones.append([ship_pos+object_velocity*self.spd_visual_multiplier, [start_rad, end_rad], object_distance])
                 self.vo_circles.append(circle)
-
-
-
-
-
-
-
-
         pass
+
+
+    def vo_theta_opacity(self):
+
+        # when search spd = max_spd
+
+        search_spd = self.ship_max_speed
+
+        for vo_cone in self.vo_cones:
+            angles = np.linspace(start=0, stop=2*math.pi, num=360, endpoint=False)
+            for theta in angles:
+                point = np.array([search_spd*math.cos(theta), search_spd*math.sin(theta)])
+
+
+
+
+
+
 
 
 
@@ -371,3 +359,33 @@ class LOS_VO_guidance():
 
         # Return the two angles of the tangent lines
         return beta, gamma
+
+    import math
+
+    def is_point_inside_circle(self, point, circle):
+        """
+        Determines whether a point is inside a circle section
+        """
+        origin, start_angle, end_angle, radius = circle
+
+        # Calculate angle of point relative to circle origin
+        point_angle = math.atan2(point[1] - origin[1], point[0] - origin[0])
+        if point_angle < 0:
+            point_angle += 2 * math.pi
+
+        # Check if point is within circle radius
+        if math.dist(point, origin) > radius:
+            result = False
+
+            # Check if point is within circle arc
+        if start_angle < end_angle:
+            result = start_angle <= point_angle <= end_angle
+        else:
+            result = start_angle <= point_angle or point_angle <= end_angle
+
+
+        if result == True:
+            time_till_collision = radius / (math.dist(point, origin) / self.spd_visual_multiplier)
+            return 1/time_till_collision
+        if result == False:
+            return  0
