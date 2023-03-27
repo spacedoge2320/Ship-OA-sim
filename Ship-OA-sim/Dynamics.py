@@ -28,7 +28,7 @@ class water_dynamics():
         # Thrust
         # Heading 방향으로 작용하는 합력 하나랑 토크
         thrust_force = (TL + TR) * np.array([math.cos(ship_pose[1]), math.sin(ship_pose[1])])
-        thrust_torque = (TL - TR) * self.T2CL_dist
+        thrust_torque = (-TL + TR) * self.T2CL_dist
 
         # DRAG
         # 속도 벡터와 heading 방향의 단위벡터를 내적하여 진행방향 속력 도출, 다시 heading 방향의 벡터화, vel_heading)

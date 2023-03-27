@@ -8,8 +8,8 @@ import Controllers
 
 class USV(object):
 
-    def __init__(self, initial_ship_pos_scaled=np.array([100.0, 100.0]), ship_heading=0.0,
-                 target_pos_scaled=np.array([900.0, 900.0]), ship_color=(50, 50, 50), guidance_type = 1):
+    def __init__(self, initial_ship_pos_scaled=np.array([10.0, 10.0]), ship_heading=0.0,
+                 target_pos_scaled=np.array([1.0, 1.0]), ship_color=(50, 50, 50), guidance_type = 1):
 
         # visual settings
         self.output_polygon = None
@@ -17,10 +17,10 @@ class USV(object):
         self.ship_points = [(1, 0), (0.75, 0.25), (-1, 0.25), (-1, -0.25), (0.75, -0.25)]
         self.ship_color = ship_color
         self.ship_pos_list = [initial_ship_pos_scaled.tolist()]
-        self.target_pos = target_pos_scaled / self.scale
+        self.target_pos = target_pos_scaled
 
         # initial state settings
-        [ship_lat_pose, ship_ax_pose] = [initial_ship_pos_scaled / self.scale, ship_heading]
+        [ship_lat_pose, ship_ax_pose] = [initial_ship_pos_scaled, ship_heading]
         [ship_lat_vel, ship_ax_vel] = [np.array([0.0, 0.0]), 0.0]
         [ship_lat_acc, ship_ax_acc] = [np.array([0.0, 0.0]), 0.0]
         # [ pose[[x,y],rot],velocity[[x,y],rot],acceleration[[x,y],rot] ]
@@ -36,15 +36,19 @@ class USV(object):
         # controller settings
         controller_params = {
             'Kp_lin': 0.1,
-            'Ki_lin': 0.0,
+            'Ki_lin': 0.1,
             'Kd_lin': 0.0,
             'Kp_ang': 0.1,
-            'Ki_ang': 0.0,
+            'Ki_ang': 0.1,
             'Kd_ang': 0.0,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
-            'rot_thrust_weight': 4.0,
-            'thrust_multiplier': 3.0
+            'rot_thrust_weight': 32.0,
+            'thrust_multiplier': 8.0,
+
+            "ship_lat_acc_pos_lim": 0.9,
+            "ship_lat_acc_neg_lim": 0.9,
+            "ship_ax_acc_lim": 0.2,
         }
         self.controller = Controllers.Pid_vel_controller(controller_params)
         self.prev_outputs = []
@@ -54,8 +58,8 @@ class USV(object):
         dynamics_params = {
             "mass": 10,
             "Izz": 1.25,
-            "inline_drag_coefficient": 10,
-            "sideways_drag_coefficient": 1000,
+            "inline_drag_coefficient": 20,
+            "sideways_drag_coefficient": 500,
             "rotational_drag_coefficient": 100,
             "T2CL_dist": 0.5
         }
@@ -66,11 +70,11 @@ class USV(object):
         # guidance settings
         guidance_params = {
             "initial_ship_speed": 0.0,
-            "ship_max_speed": 1.2,
+            "ship_max_speed": 1.5,
             "ship_ax_vel_lim": 0.5,
-            "ship_lat_acc_pos_lim": 0.2,
-            "ship_lat_acc_neg_lim": 0.2,
-            "ship_ax_acc_lim": 0.15,
+            "ship_lat_acc_pos_lim": 0.1,
+            "ship_lat_acc_neg_lim": 0.1,
+            "ship_ax_acc_lim": 0.2,
             "T_max_thrust": self.T_max_thrust,
             "T_min_thrust": self.T_min_thrust,
             "dt": 1 / 144
@@ -81,13 +85,11 @@ class USV(object):
         elif guidance_type == 2:
             self.guidance = Guidance_algorithms.LOS_VO_guidance(guidance_params)
 
-    def scale_and_rotate_polygons(self):
-        self.ship_scaled_pose = [self.phys_status['pose'][0] * self.scale, self.phys_status['pose'][1]]
+    def rotate_polygons(self):
+        self.ship_scaled_pose = [self.phys_status['pose'][0], self.phys_status['pose'][1]]
         rotated_points = []
         for point in self.ship_points:
             x, y = point
-            x = x * self.scale
-            y = y * self.scale
 
             rotated_x = x * math.cos(self.ship_scaled_pose[1]) - y * math.sin(self.ship_scaled_pose[1])
             rotated_y = x * math.sin(self.ship_scaled_pose[1]) + y * math.cos(self.ship_scaled_pose[1])
@@ -137,7 +139,7 @@ class USV(object):
         # Adds velocity divided by tick rate to get next frame's pose
 
         self.phys_status['pose'][0] += dt * self.phys_status['velocity'][0]
-        self.phys_status['pose'][1] += dt * self.phys_status['velocity'][1]
+        self.phys_status['pose'][1] -= dt * self.phys_status['velocity'][1]
 
     def smooth(self, A, B, window_size):
         """
@@ -169,10 +171,11 @@ class USV(object):
             return A
 
     # main method to generate info for the next frame
-    def move_ship(self, sensor_data=None, target_pos_scaled = [900,900], log=False):
+    def move_ship(self, sensor_data=None, target_pos_scaled = [20,20], log=False):
 
-        self.ship_scaled_pose = [self.phys_status['pose'][0] * self.scale, self.phys_status['pose'][1]]
-        target_pos = np.multiply(target_pos_scaled, 1 / self.scale)
+
+
+        target_pos = target_pos_scaled
 
         # updates the vessel's target position to the input target
         self.target_pos = target_pos
@@ -217,10 +220,16 @@ class USV(object):
         self.ship_position_integrator(dt=1 / 144)  # this writes pose into self.ship_phys_status
 
         # path generator
-        self.ship_pos_list.append(self.ship_scaled_pose[0].tolist())
+        #tail_pose = self.phys_status["pose"][0] - np.array([math.cos(self.phys_status["pose"][1]),  math.sin(self.phys_status["pose"][1])])
+
+        self.ship_pos_list.append(self.phys_status["pose"][0].tolist())
+
+        if len(self.ship_pos_list)>1000:
+            self.ship_pos_list.pop(0)
 
         # polygon generator
-        self.output_polygon = self.scale_and_rotate_polygons()
+        self.output_polygon = self.rotate_polygons()
+
 
 
 

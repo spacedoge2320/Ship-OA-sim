@@ -9,8 +9,8 @@ class Simulation:
     def __init__(self):
         pygame.init()
         # set up the window
-        screen_width, screen_height = 1000, 1000
-        self.screen = pygame.display.set_mode((screen_width, screen_height))
+        self.screen_width, self.screen_height = 1000, 1000
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         pygame.display.set_caption('SHIP SIM V1.0.0')
 
         # set up the clock
@@ -27,8 +27,8 @@ class Simulation:
 
         # initialize ships
         self.ships_database = {
-            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([900.0, 900.0]), ship_heading=3.14,
-                                        target_pos_scaled=np.array([100.0, 100.0]), ship_color=self.color_ship1,
+            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([20.0, 1.0]), ship_heading=3.14,
+                                        target_pos_scaled=np.array([1.0, 20.0]), ship_color=self.color_ship1,
                                         guidance_type=2),
             #"ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([100.0, 100.0]), ship_heading=0.0,
              #                       target_pos_scaled=np.array([900.0, 900.0]), ship_color=self.color_ship2)
@@ -36,7 +36,7 @@ class Simulation:
 
         # initialize obstacles
         self.obstacle_database = {
-            "obstacle_1": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([100.0, 900.0]), heading=3.14,
+            "obstacle_1": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([10.0, 10.00]), heading=3.14,
                                                          obstacle_color=self.color_obstacle)
             # "2": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([900.0, 100.0]), heading=0.0,
             #  obstacle_color=self.color_obstacle)
@@ -70,9 +70,9 @@ class Simulation:
                 object_database = original_object_database
 
                 if key == "main_ship":
-                    ship_obj.move_ship(target_pos_scaled=target_pos, sensor_data=sensor_data, log=True)
+                    ship_obj.move_ship(target_pos_scaled=self.rescaler2(target_pos), sensor_data=sensor_data, log=True)
                 else:
-                    ship_obj.move_ship(target_pos_scaled=[800, 800])
+                    ship_obj.move_ship(target_pos_scaled=self.rescaler2(np.array([800, 800])))
                 self.draw_ship(ship_obj)
 
                 if key == "main_ship":
@@ -107,10 +107,20 @@ class Simulation:
     def draw_ship(self, ship_obj):
         # draw ship path
         ship_pos_list = ship_obj.ship_pos_list
-        pygame.draw.aalines(self.screen, self.color_path, False, ship_pos_list, 1)
+
+        scaled_points2 = []
+
+        for points in ship_pos_list:
+            scaled_points2.append(self.rescaler(points))
+
+        pygame.draw.aalines(self.screen, self.color_path, False, scaled_points2, 1)
+
+        scaled_points = []
+        for points in ship_obj.output_polygon:
+            scaled_points.append(self.rescaler(points))
 
         # draw ship polygon
-        pygame.draw.polygon(self.screen, ship_obj.ship_color, ship_obj.output_polygon)
+        pygame.draw.polygon(self.screen, ship_obj.ship_color, scaled_points)
 
     def visualize_vo(self, ship_obj):
         vo_layer = pygame.Surface((1000, 1000), pygame.SRCALPHA)
@@ -121,30 +131,50 @@ class Simulation:
         if ship_obj.vo_circles != []:
 
             for circle in ship_obj.vo_circles:
-                pygame.draw.circle(vo_layer, circle[2], circle[0] * 40, circle[1] * 40, circle[3])
+                pygame.draw.circle(vo_layer, circle[2], self.rescaler(circle[0]), circle[1]*40, circle[3])
             # draw VO cone
             # pygame.draw.polygon(self.screen, (100, 0, 0), ship_obj.vo_cone)
             for cone in ship_obj.vo_cones:
                 # pygame.draw.line(self.screen, (255, 0, 0), cone[0] * 40, (cone[0] + np.array([math.cos(cone[1][0])*cone[2], math.cos(cone[1][0])*cone[2]]))*40, 1)
-
                 #VO cone
-                pygame.draw.line(vo_layer, (255, 153, 51), cone[0] * 40, np.array(
-                    [cone[0][0] + math.cos(cone[1][0]) * cone[2], cone[0][1] + math.sin(cone[1][0]) * cone[2]]) * 40, 2)
-                pygame.draw.line(vo_layer, (255, 153, 51), cone[0] * 40, np.array(
-                    [cone[0][0] + math.cos(cone[1][1]) * cone[2], cone[0][1] + math.sin(cone[1][1]) * cone[2]]) * 40, 2)
-                pygame.draw.arc(vo_layer, (255, 153, 51),
-                                [(cone[0][0] - cone[2]) * 40, (cone[0][1] - cone[2]) * 40, (cone[2] * 2) * 40 + 2,
-                                 (cone[2] * 2) * 40 + 2], 2 * math.pi - cone[1][1], 2 * math.pi - cone[1][0], 2)
+                pygame.draw.line(vo_layer, (255, 153, 51), self.rescaler(cone[0]), self.rescaler(np.array([cone[0][0] + math.cos(cone[1][0]) * cone[2], cone[0][1] + math.sin(cone[1][0]) * cone[2]])), 2)
+                pygame.draw.line(vo_layer, (255, 153, 51), self.rescaler(cone[0]), self.rescaler(np.array([cone[0][0] + math.cos(cone[1][1]) * cone[2], cone[0][1] + math.sin(cone[1][1]) * cone[2]])), 2)
+
+                start_point = self.rescaler(np.array([cone[0][0] - cone[2],cone[0][1] + cone[2]]))
+
+
+
+
+                pygame.draw.arc(vo_layer, (255, 153, 51), [start_point[0],start_point[1], 40*(cone[2] * 2) + 2, 40*(cone[2] * 2) + 2], cone[1][0], cone[1][1], 2)
+
+                #print(cone[0])
             #Ship speed vector
             for lines in ship_obj.vo_lines:
-                pygame.draw.line(vo_layer, (51, 51, 255), lines[0] * 40, lines[1] * 40, 2)
+                pygame.draw.line(vo_layer, (51, 51, 255),self.rescaler(lines[0]), self.rescaler(lines[1]), 2)
 
         self.screen.blit(vo_layer, (0, 0))  # (0,0) are the top-left coordinates
 
     def draw_obstacle(self, obstacle):
         # draw obstacle polygon
-        pygame.draw.polygon(self.screen, obstacle.obstacle_color, obstacle.output_polygon)
+
+        scaled_points = []
+        for points in obstacle.output_polygon:
+            scaled_points.append(self.rescaler(points))
+
+        pygame.draw.polygon(self.screen, obstacle.obstacle_color, scaled_points)
 
     def object_publisher(self):
         object_database = dict(self.ships_database, **self.obstacle_database)
         return object_database
+
+    def rescaler(self,position_to_scale):
+        T = np.array([[1, 0], [0, -1]])
+        return np.array([0, self.screen_height]) + np.matmul(T, position_to_scale)*40
+    def rescaler2(self,screen_position):
+        T = np.array([[1, 0], [0, -1]])
+        return (np.array([0, self.screen_height]) + np.matmul(T,screen_position))/40
+
+
+
+
+

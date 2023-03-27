@@ -10,19 +10,12 @@ class PIDController:
         self.prev_error = 0.0
         self.integral = 0.0
 
-
-
-
-
-
     def compute(self, error, dt):
         self.integral += error * dt
         derivative = (error - self.prev_error) / dt
         output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
         self.prev_error = error
         return output
-
-
 
 class Pid_vel_controller():
     # Receives CMD_VEL and outputs translational and angular accelerations
@@ -38,6 +31,10 @@ class Pid_vel_controller():
         self.MIN_THRUST = params['MIN_THRUST']
         self.rot_thrust_weight = params['rot_thrust_weight']
         self.thrust_multiplier = params['thrust_multiplier']
+        self.ship_lat_acc_pos_lim = params['ship_lat_acc_pos_lim']
+        self.ship_lat_acc_neg_lim = params['ship_lat_acc_neg_lim']
+        self.ship_ax_acc_lim = params['ship_ax_acc_lim']
+
 
         self.prev_outputs1 = []
         self.prev_outputs2 = []
@@ -52,7 +49,11 @@ class Pid_vel_controller():
 
         curr_lin_vel = np.linalg.norm(ship_phys_status['velocity'][0])
         curr_ang_vel = ship_phys_status['velocity'][1]
+        #print(curr_ang_vel)
+
+        #cmd_lin_vel = np.dot(cmd_vel[0], np.array([math.cos(ship_phys_status['pose'][1]), math.sin(ship_phys_status['pose'][1])]))
         cmd_lin_vel = np.linalg.norm(cmd_vel[0])
+
         cmd_ang_vel = cmd_vel[1]
 
         # Compute errors for linear and angular velocities
@@ -73,12 +74,16 @@ class Pid_vel_controller():
             accel_ang = pid_ang.compute(error_ang_vel, dt)
 
         if cmd_lin_vel == 0:
-            accel_lin = pid_lin.compute(error_lin_vel, dt)*10
+            accel_lin = pid_lin.compute(error_lin_vel, dt)*20
+            accel_ang = 0
+            if abs(curr_lin_vel) <= 0.01:
+                accel_lin = 0
 
-        #accel_ang = 100000*error_ang_vel*abs(error_ang_vel)
 
-        TRight = ((accel_lin + (accel_ang*self.rot_thrust_weight)))*self.thrust_multiplier
-        TLeft = ((accel_lin - (accel_ang*self.rot_thrust_weight)))*self.thrust_multiplier
+        accel_lin = max(min(accel_lin, self.ship_lat_acc_pos_lim), -self.ship_lat_acc_neg_lim)
+
+        TRight = ((accel_lin*self.thrust_multiplier + (accel_ang*self.rot_thrust_weight)))
+        TLeft = ((accel_lin*self.thrust_multiplier - (accel_ang*self.rot_thrust_weight)))
 
 
 
@@ -93,8 +98,8 @@ class Pid_vel_controller():
         #TLeft = self.filter1(TLeft)
         #TRight = self.filter2(TRight)
 
-        if log == True:
-            print("\rcmd_vel, TLeft, TRight", cmd_vel, TLeft, TRight, end=" ")
+        #if log == True:
+            #print("\rcmd_vel, TLeft, TRight", cmd_vel, TLeft, TRight, end=" ")
 
         return [TLeft, TRight]
 
