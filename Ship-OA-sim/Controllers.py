@@ -96,7 +96,7 @@ class Pid_vel_controller():
         #TRight = self.filter2(TRight)
 
         #if log == True:
-        print("cmd_vel, TLeft, TRight", cmd_vel, accel_lin, TLeft, TRight)
+        #print("cmd_vel, TLeft, TRight", cmd_vel, accel_lin, TLeft, TRight)
 
         return [TLeft, TRight]
 

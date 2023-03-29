@@ -172,8 +172,8 @@ class LOS_VO_guidance():
             point = np.array(
                 [target_speed * math.cos(math.radians(theta*6)), target_speed * math.sin(math.radians(theta*6))])
 
-            if self.angle_opacity[theta] > 12/30:
-                self.vo_circles.append([self.phys_status["pose"][0]+point,0.05, (255,50,50), 1])
+            if self.angle_opacity[theta] < np.percentile(self.angle_opacity,5):
+                self.vo_circles.append([self.phys_status["pose"][0]+point*4,0.05, (50,250,50), 2])
 
         self.vo_lines.append([self.phys_status["pose"][0],[self.phys_status["pose"][0][0]+target_speed*math.cos(angle_rad),self.phys_status["pose"][0][1]+target_speed*math.sin(angle_rad)],(0,255,0)])
 
@@ -272,7 +272,7 @@ class LOS_VO_guidance():
             while delta_angle <= -1 * math.pi:
                 delta_angle = delta_angle + 2 * math.pi
 
-            angle_diff_opacity = (abs(delta_angle/(math.pi))**2)*(25/80)
+            angle_diff_opacity = math.sqrt(abs(delta_angle/(math.pi)))*(1/40)
 
             angle_opacity[theta] = angle_diff_opacity
 
@@ -282,7 +282,10 @@ class LOS_VO_guidance():
 
                 opacity = self.is_point_inside_circle(point+self.phys_status["pose"][0], vo_cone)
 
-                angle_opacity[theta] = angle_opacity[theta]+opacity*0.7
+                if opacity < 1/30:
+                    opacity = 0
+
+                angle_opacity[theta] = angle_opacity[theta]+(opacity**4)*6000
 
         return angle_opacity
 

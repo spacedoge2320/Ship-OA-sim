@@ -5,6 +5,7 @@ import Ship_class
 import Obstacle_class
 
 
+
 class Simulation1:
     def __init__(self):
         pygame.init()
