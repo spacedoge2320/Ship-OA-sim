@@ -47,12 +47,12 @@ class Pid_vel_controller():
         # Unpack linear and angular velocities
 
 
-        curr_lin_vel = np.linalg.norm(ship_phys_status['velocity'][0])
+        curr_lin_vel = np.dot(ship_phys_status['velocity'][0], np.array([math.cos(ship_phys_status['pose'][1]), math.sin(ship_phys_status['pose'][1])]))
         curr_ang_vel = ship_phys_status['velocity'][1]
         #print(curr_ang_vel)
 
-        #cmd_lin_vel = np.dot(cmd_vel[0], np.array([math.cos(ship_phys_status['pose'][1]), math.sin(ship_phys_status['pose'][1])]))
-        cmd_lin_vel = np.linalg.norm(cmd_vel[0])
+        cmd_lin_vel = np.dot(cmd_vel[0], np.array([math.cos(ship_phys_status['pose'][1]), math.sin(ship_phys_status['pose'][1])]))
+        #cmd_lin_vel = np.linalg.norm(cmd_vel[0])
 
         cmd_ang_vel = cmd_vel[1]
 
@@ -90,16 +90,13 @@ class Pid_vel_controller():
         # Limit the thrust values to the maximum and minimum values
         TRight = max(min(TRight, self.MAX_THRUST), self.MIN_THRUST)
         TLeft = max(min(TLeft, self.MAX_THRUST), self.MIN_THRUST)
-
-
-
         # Example usage
 
         #TLeft = self.filter1(TLeft)
         #TRight = self.filter2(TRight)
 
         #if log == True:
-            #print("\rcmd_vel, TLeft, TRight", cmd_vel, TLeft, TRight, end=" ")
+        print("cmd_vel, TLeft, TRight", cmd_vel, accel_lin, TLeft, TRight)
 
         return [TLeft, TRight]
 

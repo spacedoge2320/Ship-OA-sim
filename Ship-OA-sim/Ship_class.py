@@ -14,10 +14,11 @@ class USV(object):
         # visual settings
         self.output_polygon = None
         self.scale = 40  # 40px = 1meter
-        self.ship_points = [(1, 0), (0.75, 0.25), (-1, 0.25), (-1, -0.25), (0.75, -0.25)]
+        self.ship_points = [(1, 0), (0.75, 0.35), (-1, 0.35), (-1, -0.35), (0.75, -0.35)]
         self.ship_color = ship_color
         self.ship_pos_list = [initial_ship_pos_scaled.tolist()]
         self.target_pos = target_pos_scaled
+        self.ticks = 0
 
         # initial state settings
         [ship_lat_pose, ship_ax_pose] = [initial_ship_pos_scaled, ship_heading]
@@ -29,9 +30,10 @@ class USV(object):
         self.ship_scaled_pose = [ship_lat_pose * self.scale, ship_ax_pose]
         self.thrust = [0, 0]
 
-        self.T_max_thrust = 70
-        self.T_min_thrust = -70
-        self.T2CL_dist = 0.4
+        self.T_max_thrust = 50
+        self.T_min_thrust = -50
+        self.T2CL_dist = 0.5
+        self.cmd_vel = [[0,0],0]
 
         # controller settings
         controller_params = {
@@ -43,11 +45,11 @@ class USV(object):
             'Kd_ang': 0.0,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
-            'rot_thrust_weight': 30.0,
+            'rot_thrust_weight': 70.0,
             'thrust_multiplier': 20.0,
 
-            "ship_lat_acc_pos_lim": 0.9,
-            "ship_lat_acc_neg_lim": 0.9,
+            "ship_lat_acc_pos_lim": 0.6,
+            "ship_lat_acc_neg_lim": 0.6,
             "ship_ax_acc_lim": 0.2,
         }
         self.controller = Controllers.Pid_vel_controller(controller_params)
@@ -58,8 +60,8 @@ class USV(object):
         dynamics_params = {
             "mass": 10,
             "Izz": 1.25,
-            "inline_drag_coefficient": 30,
-            "sideways_drag_coefficient": 500,
+            "inline_drag_coefficient": 20,
+            "sideways_drag_coefficient": 600,
             "rotational_drag_coefficient": 150,
             "T2CL_dist": 0.5
         }
@@ -177,6 +179,9 @@ class USV(object):
 
         target_pos = target_pos_scaled
 
+
+        self.output_polygon = self.rotate_polygons()
+
         # updates the vessel's target position to the input target
         self.target_pos = target_pos
 
@@ -186,21 +191,22 @@ class USV(object):
 
 
         # Guidance & Obstacle avoidance
-        if self.guidance_type ==1:
-            cmd_vel = self.guidance.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 60)
-            # cmd_vel = [np.array([-1, 0]), 0]
-        elif self.guidance_type ==2:
-            cmd_vel = self.guidance.ship_los_vo_guidance(self.phys_status, output_polygon = self.output_polygon, target_pos=target_pos, sensor_data=sensor_data, dt=1 / 60)
-            #self.collision_cone = self.guidance.collision_cone
-            self.vo_circles = self.guidance.vo_circles
-            self.vo_cones = self.guidance.vo_cones
-            self.vo_lines = self.guidance.vo_lines
-            self.vo_polygons = self.guidance.vo_polygons
+        if self.ticks % 3 == 0:
+            if self.guidance_type ==1:
+                self.cmd_vel = self.guidance.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 60)
+                # cmd_vel = [np.array([-1, 0]), 0]
+            elif self.guidance_type ==2:
+                self.cmd_vel = self.guidance.ship_los_vo_guidance(self.phys_status, output_polygon=self.output_polygon, target_pos=target_pos, sensor_data=sensor_data, dt=1 / 60)
+                #self.collision_cone = self.guidance.collision_cone
+                self.vo_circles = self.guidance.vo_circles
+                self.vo_cones = self.guidance.vo_cones
+                self.vo_lines = self.guidance.vo_lines
+                self.vo_polygons = self.guidance.vo_polygons
 
 
 
         # thrust controller --validated
-        self.thrust = self.controller.pid_tune_velocity(self.phys_status, cmd_vel=cmd_vel, log=log)
+        self.thrust = self.controller.pid_tune_velocity(self.phys_status, cmd_vel=self.cmd_vel, log=log)
 
         # thrust_jerk_limiter
 
@@ -224,13 +230,13 @@ class USV(object):
         # path generator
         #tail_pose = self.phys_status["pose"][0] - np.array([math.cos(self.phys_status["pose"][1]),  math.sin(self.phys_status["pose"][1])])
 
-        self.ship_pos_list.append(self.phys_status["pose"][0].tolist())
-
-        if len(self.ship_pos_list)>10000:
-            self.ship_pos_list.pop(0)
+        if self.ticks % 10 == 0:
+            self.ship_pos_list.append(self.phys_status["pose"][0].tolist())
 
         # polygon generator
         self.output_polygon = self.rotate_polygons()
+
+        self.ticks += 1
 
 
 
