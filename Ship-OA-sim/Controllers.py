@@ -43,7 +43,7 @@ class Pid_vel_controller():
         self.n = 10
 
 
-    def pid_tune_velocity(self, ship_phys_status,cmd_vel,dt=1/144,log = False):
+    def pid_tune_velocity(self, ship_phys_status,cmd_vel,dt=1/60,log = False):
         # Unpack linear and angular velocities
 
 

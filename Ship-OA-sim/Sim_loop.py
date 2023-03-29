@@ -3,6 +3,10 @@ import math
 import numpy as np
 import Ship_class
 import Obstacle_class
+from cProfile import Profile
+
+
+
 
 
 class Simulation:
@@ -15,7 +19,7 @@ class Simulation:
 
         # set up the clock
         self.clock = pygame.time.Clock()
-        self.tick = 144
+        self.tick = 60
 
         # define colors
         self.color_path = (200, 200, 200)
@@ -27,17 +31,19 @@ class Simulation:
 
         # initialize ships
         self.ships_database = {
-            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([20.0, 1.0]), ship_heading=3.14,
+            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([20.0, 1.0]), ship_heading=3.14/2,
                                         target_pos_scaled=np.array([1.0, 20.0]), ship_color=self.color_ship1,
                                         guidance_type=2),
-            #"ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([100.0, 100.0]), ship_heading=0.0,
-             #                       target_pos_scaled=np.array([900.0, 900.0]), ship_color=self.color_ship2)
+            "ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([1.0, 20.0]), ship_heading=0.0,
+                                    target_pos_scaled=np.array([20.0, 1.0]), ship_color=self.color_ship2, guidance_type=2)
         }
 
         # initialize obstacles
         self.obstacle_database = {
-            "obstacle_1": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([10.0, 10.00]), heading=3.14,
+            "obstacle_1": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([12.0, 12.00]), heading=3.14,
                                                          obstacle_color=self.color_obstacle)
+
+
             # "2": Obstacle_class.square_obstacle(initial_pos_scaled=np.array([900.0, 100.0]), heading=0.0,
             #  obstacle_color=self.color_obstacle)
         }
@@ -45,6 +51,8 @@ class Simulation:
 
     def loop(self):
         # set up the game loop
+
+
         target_pos = [500, 500]
 
         running = True
@@ -60,6 +68,11 @@ class Simulation:
 
             object_database = self.object_publisher()  # returns info of the objects(ships and obstacles) in the world.
 
+            for key, obstacle in list(self.obstacle_database.items()):
+                obstacle.polygon()
+                self.draw_obstacle(obstacle)
+
+
             # Draw ships
             for key, ship_obj in list(self.ships_database.items()):
                 original_object_database = object_database
@@ -72,16 +85,15 @@ class Simulation:
                 if key == "main_ship":
                     ship_obj.move_ship(target_pos_scaled=self.rescaler2(target_pos), sensor_data=sensor_data, log=True)
                 else:
-                    ship_obj.move_ship(target_pos_scaled=self.rescaler2(np.array([800, 800])))
+                    ship_obj.move_ship(target_pos_scaled=self.rescaler2(np.array([900, 900])), sensor_data=sensor_data)
+
                 self.draw_ship(ship_obj)
 
-                if key == "main_ship":
-                    self.visualize_vo(ship_obj)
+                #if key == "main_ship":
+                self.visualize_vo(ship_obj)
 
             # Draw obstacles
-            for key, obstacle in list(self.obstacle_database.items()):
-                obstacle.polygon()
-                self.draw_obstacle(obstacle)
+
 
             self.draw_target(target_pos)
 
@@ -130,6 +142,13 @@ class Simulation:
         # print("ship_obj",ship_obj.vo_circle)
         if ship_obj.vo_circles != []:
 
+            for polygon in ship_obj.vo_polygons:
+                scaled_points = []
+                for points in polygon:
+                    scaled_points.append(self.rescaler(points))
+                pygame.draw.polygon(vo_layer, (0,250,0,20),scaled_points)
+
+
             for circle in ship_obj.vo_circles:
                 pygame.draw.circle(vo_layer, circle[2], self.rescaler(circle[0]), circle[1]*40, circle[3])
             # draw VO cone
@@ -141,16 +160,19 @@ class Simulation:
                 pygame.draw.line(vo_layer, (255, 153, 51), self.rescaler(cone[0]), self.rescaler(np.array([cone[0][0] + math.cos(cone[1][1]) * cone[2], cone[0][1] + math.sin(cone[1][1]) * cone[2]])), 2)
 
                 start_point = self.rescaler(np.array([cone[0][0] - cone[2],cone[0][1] + cone[2]]))
-
-
-
-
                 pygame.draw.arc(vo_layer, (255, 153, 51), [start_point[0],start_point[1], 40*(cone[2] * 2) + 2, 40*(cone[2] * 2) + 2], cone[1][0], cone[1][1], 2)
 
                 #print(cone[0])
             #Ship speed vector
             for lines in ship_obj.vo_lines:
                 pygame.draw.line(vo_layer, (51, 51, 255),self.rescaler(lines[0]), self.rescaler(lines[1]), 2)
+
+
+
+
+
+
+
 
         self.screen.blit(vo_layer, (0, 0))  # (0,0) are the top-left coordinates
 
@@ -174,6 +196,16 @@ class Simulation:
         T = np.array([[1, 0], [0, -1]])
         return (np.array([0, self.screen_height]) + np.matmul(T,screen_position))/40
 
+
+Simulation = Simulation()
+profiler = Profile()
+profiler.runcall(Simulation.loop)
+from pstats import Stats
+
+stats = Stats(profiler)
+stats.strip_dirs()
+stats.sort_stats('cumulative')
+stats.print_stats()
 
 
 

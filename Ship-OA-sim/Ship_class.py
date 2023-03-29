@@ -29,8 +29,8 @@ class USV(object):
         self.ship_scaled_pose = [ship_lat_pose * self.scale, ship_ax_pose]
         self.thrust = [0, 0]
 
-        self.T_max_thrust = 60
-        self.T_min_thrust = -60
+        self.T_max_thrust = 70
+        self.T_min_thrust = -70
         self.T2CL_dist = 0.4
 
         # controller settings
@@ -43,8 +43,8 @@ class USV(object):
             'Kd_ang': 0.0,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
-            'rot_thrust_weight': 32.0,
-            'thrust_multiplier': 8.0,
+            'rot_thrust_weight': 30.0,
+            'thrust_multiplier': 20.0,
 
             "ship_lat_acc_pos_lim": 0.9,
             "ship_lat_acc_neg_lim": 0.9,
@@ -58,9 +58,9 @@ class USV(object):
         dynamics_params = {
             "mass": 10,
             "Izz": 1.25,
-            "inline_drag_coefficient": 20,
+            "inline_drag_coefficient": 30,
             "sideways_drag_coefficient": 500,
-            "rotational_drag_coefficient": 100,
+            "rotational_drag_coefficient": 150,
             "T2CL_dist": 0.5
         }
         self.dynamics = Dynamics.water_dynamics(dynamics_params)
@@ -77,7 +77,7 @@ class USV(object):
             "ship_ax_acc_lim": 0.2,
             "T_max_thrust": self.T_max_thrust,
             "T_min_thrust": self.T_min_thrust,
-            "dt": 1 / 144
+            "dt": 1 / 60
         }
 
         if guidance_type == 1:
@@ -135,7 +135,7 @@ class USV(object):
         return TLeft, TRight
 
     # ship position integrator
-    def ship_position_integrator(self, dt=1 / 144):
+    def ship_position_integrator(self, dt=1 / 60):
         # Adds velocity divided by tick rate to get next frame's pose
 
         self.phys_status['pose'][0] += dt * self.phys_status['velocity'][0]
@@ -187,14 +187,16 @@ class USV(object):
 
         # Guidance & Obstacle avoidance
         if self.guidance_type ==1:
-            cmd_vel = self.guidance.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 144)
+            cmd_vel = self.guidance.ship_los_guidance(self.phys_status, target_pos=target_pos, dt=1 / 60)
             # cmd_vel = [np.array([-1, 0]), 0]
         elif self.guidance_type ==2:
-            cmd_vel = self.guidance.ship_los_vo_guidance(self.phys_status, output_polygon = self.output_polygon, target_pos=target_pos, sensor_data=sensor_data, dt=1 / 144)
+            cmd_vel = self.guidance.ship_los_vo_guidance(self.phys_status, output_polygon = self.output_polygon, target_pos=target_pos, sensor_data=sensor_data, dt=1 / 60)
             #self.collision_cone = self.guidance.collision_cone
             self.vo_circles = self.guidance.vo_circles
             self.vo_cones = self.guidance.vo_cones
             self.vo_lines = self.guidance.vo_lines
+            self.vo_polygons = self.guidance.vo_polygons
+
 
 
         # thrust controller --validated
@@ -214,17 +216,17 @@ class USV(object):
         # vehicle dynamics simulator -- validated
         self.phys_status = self.dynamics.dynamics(ship_phys_status=self.phys_status, TR=self.thrust[1],
                                                   TL=self.thrust[0],
-                                                  dt=1 / 144)  # this writes velocity into self.ship_phys_status
+                                                  dt=1 / 60)  # this writes velocity into self.ship_phys_status
 
         # ship position integrator
-        self.ship_position_integrator(dt=1 / 144)  # this writes pose into self.ship_phys_status
+        self.ship_position_integrator(dt=1 / 60)  # this writes pose into self.ship_phys_status
 
         # path generator
         #tail_pose = self.phys_status["pose"][0] - np.array([math.cos(self.phys_status["pose"][1]),  math.sin(self.phys_status["pose"][1])])
 
         self.ship_pos_list.append(self.phys_status["pose"][0].tolist())
 
-        if len(self.ship_pos_list)>1000:
+        if len(self.ship_pos_list)>10000:
             self.ship_pos_list.pop(0)
 
         # polygon generator

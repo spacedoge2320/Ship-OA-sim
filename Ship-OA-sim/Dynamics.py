@@ -14,7 +14,7 @@ class water_dynamics():
         self.rotational_drag_coefficient = params['rotational_drag_coefficient']
         self.T2CL_dist = params['T2CL_dist']
 
-    def dynamics(self, ship_phys_status, TR, TL, dt=1 / 144):
+    def dynamics(self, ship_phys_status, TR, TL, dt=1 / 60):
         # this method simulates the dynamics of a boat. input = thrusts of the thrusters, output = velocity
         # cmd_acc = [[velx,vely], axial_vel] x is relative.
 
