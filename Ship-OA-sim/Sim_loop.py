@@ -3,18 +3,15 @@ import math
 import numpy as np
 import Ship_class
 import Obstacle_class
-from cProfile import Profile
-
-
-
 
 
 class Simulation:
     def __init__(self):
         pygame.init()
         # set up the window
-        self.screen_width, self.screen_height = 1000, 1000
-        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        self.screen_width, self.screen_height = 1920, 1080
+        flags = pygame.OPENGL
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height),flags,vsync=0)
         pygame.display.set_caption('SHIP SIM V1.0.0')
 
         # set up the clock
@@ -51,8 +48,6 @@ class Simulation:
 
     def loop(self):
         # set up the game loop
-
-
         target_pos = [500, 500]
 
         running = True
@@ -135,7 +130,7 @@ class Simulation:
         pygame.draw.polygon(self.screen, ship_obj.ship_color, scaled_points)
 
     def visualize_vo(self, ship_obj):
-        vo_layer = pygame.Surface((1000, 1000), pygame.SRCALPHA)
+        vo_layer = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
         vo_layer.set_alpha(255)  # alpha level
 
         # draw VO circle
@@ -188,24 +183,24 @@ class Simulation:
     def object_publisher(self):
         object_database = dict(self.ships_database, **self.obstacle_database)
         return object_database
-
+    """
     def rescaler(self,position_to_scale):
         T = np.array([[1, 0], [0, -1]])
-        return np.array([0, self.screen_height]) + np.matmul(T, position_to_scale)*40
+        return np.array([0, self.screen_height]) + np.matmul(T, position_to_scale)*40"""
+
+    def rescaler(self, position_to_scale):
+        x, y = position_to_scale
+        return np.array([x*40, -y*40 + self.screen_height])
+
+    """
     def rescaler2(self,screen_position):
         T = np.array([[1, 0], [0, -1]])
-        return (np.array([0, self.screen_height]) + np.matmul(T,screen_position))/40
+        return (np.array([0, self.screen_height]) + np.matmul(T,screen_position))/40"""
 
+    def rescaler2(self, screen_position):
+        x, y = screen_position
+        return np.array([x/40, -y/40 + self.screen_height/40])
 
-Simulation = Simulation()
-profiler = Profile()
-profiler.runcall(Simulation.loop)
-from pstats import Stats
-
-stats = Stats(profiler)
-stats.strip_dirs()
-stats.sort_stats('cumulative')
-stats.print_stats()
 
 
 
