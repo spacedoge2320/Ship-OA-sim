@@ -145,35 +145,35 @@ class LOS_VO_guidance():
         target_angle = self.regularize_angle(math.atan2(target_vector[1], target_vector[0]))
 
         # search for valid angle
-        target_speed = self.ship_max_speed
+        target_speed = 1.5
         self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
         angle_rad = math.radians(6*self.index_with_lowest_number(self.angle_opacity))
         angle_variance = self.regularize_angle(angle_rad - ship_heading)
-
         if abs(angle_variance) > math.pi * (1/8):
-            target_speed = self.ship_max_speed /1.5
+            target_speed = 2.5
             self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
             angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
             angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
-            if abs(angle_variance) > math.pi*(1/4):
-                target_speed = self.ship_max_speed/5
+            if abs(angle_variance) > math.pi * (1/8):
+                target_speed = 0.5
                 self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
                 angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
                 angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
-                if abs(angle_variance) > math.pi*(3/4):
-                    target_speed = -self.ship_max_speed/4
+                if abs(angle_variance) > math.pi * (1/8):
+                    target_speed = -0.5
                     self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
                     angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
                     angle_variance = self.regularize_angle(angle_rad - ship_heading)
+
 
         for theta in range(0,60):
             point = np.array(
                 [target_speed * math.cos(math.radians(theta*6)), target_speed * math.sin(math.radians(theta*6))])
 
-            if self.angle_opacity[theta] < np.percentile(self.angle_opacity,5):
-                self.vo_circles.append([self.phys_status["pose"][0]+point*4,0.05, (50,250,50), 2])
+            if self.angle_opacity[theta] < np.percentile(self.angle_opacity,10):
+                self.vo_circles.append([self.phys_status["pose"][0]+point,0.05, (255,50,50), 1])
 
         self.vo_lines.append([self.phys_status["pose"][0],[self.phys_status["pose"][0][0]+target_speed*math.cos(angle_rad),self.phys_status["pose"][0][1]+target_speed*math.sin(angle_rad)],(0,255,0)])
 
@@ -241,7 +241,8 @@ class LOS_VO_guidance():
                 rel_spd = np.linalg.norm(object[0].phys_status["velocity"][0]-ship_vel)
 
                 if object_distance < 0.1:  # for avoiding divide by zero error
-                    object_distance = 0.5
+                    object_distance = 1
+
 
                 start_rad = object[1]
                 end_rad = object[2]
@@ -272,7 +273,7 @@ class LOS_VO_guidance():
             while delta_angle <= -1 * math.pi:
                 delta_angle = delta_angle + 2 * math.pi
 
-            angle_diff_opacity = math.sqrt(abs(delta_angle/(math.pi)))*(1/40)
+            angle_diff_opacity = (abs(delta_angle/(math.pi))**2)*(50/80)
 
             angle_opacity[theta] = angle_diff_opacity
 
@@ -280,12 +281,12 @@ class LOS_VO_guidance():
             for theta in range(0, 60):
                 point = np.array([spd_to_search*math.cos(math.radians(theta*6)), spd_to_search*math.sin(math.radians(theta*6))])
 
-                opacity = self.is_point_inside_circle(point+self.phys_status["pose"][0], vo_cone)
+                opacity = self.vo_cone_collision_detector(point + self.phys_status["pose"][0], vo_cone)
 
-                if opacity < 1/30:
-                    opacity = 0
+                if opacity > 1/5:
+                    opacity = 1000
 
-                angle_opacity[theta] = angle_opacity[theta]+(opacity**4)*6000
+                angle_opacity[theta] = angle_opacity[theta]+(opacity**2)*50
 
         return angle_opacity
 
@@ -375,8 +376,8 @@ class LOS_VO_guidance():
                 continue
             [max_angle_point, min_angle_point], [start_angle, end_angle], self.outer_polygon,closest_distance = N
 
-                #self.vo_lines.append([self.phys_status["pose"][0], max_angle_point,(255, 153, 51)])
-                #self.vo_lines.append([self.phys_status["pose"][0], min_angle_point,(255, 153, 51)])
+            #self.vo_lines.append([self.phys_status["pose"][0], max_angle_point,(255, 153, 251)])
+            #self.vo_lines.append([self.phys_status["pose"][0], min_angle_point,(255, 153, 251)])
             if closest_distance <= self.detection_range:
 
 
@@ -419,19 +420,14 @@ class LOS_VO_guidance():
             return
 
         # Calculate the angle for each point relative to the origin
-
         object_vector = (object.phys_status["pose"][0] - self.phys_status["pose"][0])
-
         avg_angle = math.atan2(object_vector[1],object_vector[0])
-
         if avg_angle < 0:
             while avg_angle < 0:
                 avg_angle += 2 * math.pi
-
         if avg_angle > 2 * math.pi:
             while avg_angle > 2:
                 avg_angle -= 2 * math.pi
-
         #centers the ship polygon
         ship_polygon_centered = []
         for point in self.output_polygon:
@@ -451,7 +447,6 @@ class LOS_VO_guidance():
         angles = []
         for point in outer_polygon:
             x, y = point[0] - origin[0], point[1] - origin[1]
-            vector = np.array([x,y])
             angle = math.atan2(y, x)
 
             if angle < 0:
@@ -459,7 +454,7 @@ class LOS_VO_guidance():
                     angle += 2 * math.pi
 
             if angle > 2 * math.pi:
-                while angle >  2 * math.pi:
+                while angle > 2 * math.pi:
                     angle -= 2 * math.pi
 
             delta_angle = angle-avg_angle
@@ -484,17 +479,17 @@ class LOS_VO_guidance():
         min_angle_index = angles.index(min_angle)
 
         max_angle = min(max(angles), math.pi*(3/4))
-        min_angle = max(min(angles),-math.pi*(3/4))
+        min_angle = max(min(angles), -math.pi*(3/4))
 
         max_angle_point = outer_polygon[max_angle_index]
         min_angle_point = outer_polygon[min_angle_index]
 
         closest_point = self.closest_point_to_polygon(origin, outer_polygon)
 
-        #self.vo_circles.append([closest_point[0], 0.1, (236, 232, 26), 1])
+        self.vo_circles.append([closest_point[0], 0.1, (236, 232, 26), 1])
 
         if closest_point[1] == -1:
-            closest_distance = 0.1
+            closest_distance = 1
         else:
             closest_distance = np.linalg.norm(origin - closest_point[0])
 
@@ -555,14 +550,14 @@ class LOS_VO_guidance():
         # Return the two angles of the tangent lines
         return beta, gamma
 
-    def is_point_inside_circle(self, point, cone):
+    def vo_cone_collision_detector(self, point, cone):
         """
         Determines whether a point is inside a circle section
         """
         origin,[start_angle, end_angle], radius = cone
 
-        if radius < 0.2:
-            radius = 0.2
+        if radius < 0.5:
+            radius = 0.5
 
         # Calculate angle of point relative to circle origin
         point_angle = math.atan2(point[1] - origin[1], point[0] - origin[0])
@@ -582,10 +577,15 @@ class LOS_VO_guidance():
             inside_angle = end_angle + 2*math.pi - start_angle
 
         if result == True:
-            time_till_collision = radius / (math.dist(point, origin)/5)
+            time_till_collision = radius / (math.dist(point, origin)/10)
+
+            if radius < 2:
+                return 1
+
 
             if inside_angle > math.pi:
-                return 1000
+                return 1
+
             return 1/time_till_collision
         if result == False:
             return 0
@@ -613,7 +613,6 @@ class LOS_VO_guidance():
             if numbers[i] < numbers[lowest_index]:
                 lowest_index = i
         return lowest_index
-
 
     def regularize_angle(self,angle):
         while angle > math.pi:
@@ -663,24 +662,17 @@ class LOS_VO_guidance():
         # Find the closest point on the polygon boundary to the target point
         closest_point = None
         min_distance = float('inf')
-        for i in range(len(polygon_vertices)):
-            x1, y1 = polygon_vertices[i]
-            x2, y2 = polygon_vertices[(i + 1) % len(
-                polygon_vertices)]  # the mod operator ensures that the last vertex connects with the first vertex
-            dx = x2 - x1
-            dy = y2 - y1
 
-            dist1 = math.sqrt((point[0]-x1)**2+(point[1]-y1)**2)
-            dist2 = math.sqrt((point[0] - x2) ** 2 + (point[1] - y2) ** 2)
-            dist3 = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+        polygon_vertices2 = self.subdivide_polygon(polygon_vertices)
 
-            ratio = (dist1/(dist1 +dist2)) #point1 to the tangent point
+        for i in range(len(polygon_vertices2)):
 
-            closest_x = float(x1) + ratio * dx
-            closest_y = float(y1) + ratio * dy
+            (closest_x, closest_y) = polygon_vertices2[i]
+
             distance = np.sqrt((point[0] - closest_x) ** 2 + (point[1] - closest_y) ** 2)
             if distance < min_distance:
                 min_distance = distance
+
                 closest_point = np.array([closest_x, closest_y])
 
         if self.is_inside_polygon(point, polygon_vertices):
@@ -690,7 +682,7 @@ class LOS_VO_guidance():
 
 
 
-    def is_inside_polygon(self,point, polygon_vertices):
+    def is_inside_polygon(self, point, polygon_vertices):
         # Create a list of tuples containing the x,y coordinates of the polygon vertices
         polygon = [(x, y) for x, y in polygon_vertices]
 
@@ -709,5 +701,30 @@ class LOS_VO_guidance():
                         wn -= 1
         return wn != 0
 
+    def subdivide_polygon(self, polygon, n=20):
+        """Subdivides a polygon and divides each edge into n segments."""
+        new_polygon = []
 
+        # Iterate over the edges of the polygon
+        for i in range(len(polygon)):
+            # Add the current vertex to the new polygon
+            new_polygon.append(polygon[i])
+
+            # Calculate the difference vector between the current and next vertex
+            diff = [polygon[(i + 1) % len(polygon)][j] - polygon[i][j] for j in range(len(polygon[0]))]
+
+            # Calculate the size of each segment along the current edge
+            segment_size = [diff[j] / n for j in range(len(diff))]
+
+            # Iterate over the segments of the current edge
+            for j in range(1, n):
+                # Calculate the coordinates of the new vertex
+                x_new = polygon[i][0] + j * segment_size[0]
+                y_new = polygon[i][1] + j * segment_size[1]
+                new_vertex = [x_new, y_new]
+
+                # Add the new vertex to the new polygon
+                new_polygon.append(new_vertex)
+
+        return new_polygon
 

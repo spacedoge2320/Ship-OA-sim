@@ -3,6 +3,75 @@ import math
 import numpy as np
 import Ship_class
 import Obstacle_class
+import threading
+import time
+
+class Logic:
+    # This will run in another thread
+    def __init__(self, size, speed=2):
+        # Private fields -> Only to be edited locally
+        self._size = size
+        self._direction = np.array([0, 1])  # [x, y] vector, underscored because we want this to be private
+        self._speed = speed
+
+        # Threaded fields -> Those accessible from other threads
+        self.position = np.array(size) / 2
+        self.input_list = []  # A list of commands to queue up for execution
+
+        self.ships_database = {
+            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([2.0, 12.0]), ship_heading=0,
+                                        target_pos_scaled=np.array([1.0, 20.0]), ship_color=self.color_ship1,
+                                        guidance_type=2),
+            "ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 14.0]), ship_heading=3.14,
+                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])), ship_color=self.color_ship2, guidance_type=2),
+            "ship2": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 8.0]), ship_heading=3.14,
+                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])),
+                                    ship_color=self.color_ship2, guidance_type=2),
+            "ship3": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 2.0]), ship_heading=3.14,
+                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])),
+                                    ship_color=self.color_ship2, guidance_type=2)
+        }
+
+        # A lock ensures that nothing else can edit the variable while we're changing it
+        self.lock = threading.Lock()
+
+    def _loop(self):
+        time.sleep(0.5)  # Wait a bit to let things load
+        # We're just going to kill this thread with the main one so it's fine to just loop forever
+        while True:
+            # Check for commands
+            time.sleep(0.01)  # Limit the logic loop running to every 10ms
+
+            if len(self.input_list) > 0:
+
+                with self.lock:  # The lock is released when we're done
+                    # If there is a command we pop it off the list
+                    key = self.input_list.pop(0).key
+
+                if key == pygame.K_w:
+                    self._direction = np.array([0, -1])
+                elif key == pygame.K_a:
+                    self._direction = np.array([-1, 0])
+                elif key == pygame.K_s:
+                    self._direction = np.array([0, 1])
+                elif key == pygame.K_d:
+                    self._direction = np.array([1, 0])
+
+            with self.lock:  # Again we call the lock because we're editing
+                self.position += self._direction * self._speed
+
+            if self.position[0] < 0 \
+                    or self.position[0] > self._size[0] \
+                    or self.position[1] < 0 \
+                    or self.position[1] > self._size[1]:
+                break  # Stop updating
+
+    def start_loop(self):
+        # We spawn a new thread using our _loop method, the loop has no additional arguments,
+        # We call daemon=True so that the thread dies when main dies
+        threading.Thread(target=self._loop,
+                         args=(),
+                         daemon=True).start()
 
 
 
@@ -38,18 +107,18 @@ class Simulation1:
 
         # initialize obstacles
         self.obstacle_database = {
-            "obstacle_1": Obstacle_class.wall(initial_pos_scaled=np.array([12.0, 6.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_2": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 20.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_3": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 6.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_4": Obstacle_class.wall(initial_pos_scaled=np.array([36.0, 20.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
+            "obstacle_1": Obstacle_class.wall(initial_pos_scaled=np.array([12.0, 6.0]), heading=3.14 / 2,
+                                              obstacle_color=self.color_obstacle),
+            "obstacle_2": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 20.0]), heading=3.14 / 2,
+                                              obstacle_color=self.color_obstacle),
+            "obstacle_3": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 6.0]), heading=3.14 / 2,
+                                              obstacle_color=self.color_obstacle),
+            "obstacle_4": Obstacle_class.wall(initial_pos_scaled=np.array([36.0, 20.0]), heading=3.14 / 2,
+                                              obstacle_color=self.color_obstacle),
             "obstacle_5": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 0.7]), heading=0,
-                                                         obstacle_color=self.color_obstacle),
+                                              obstacle_color=self.color_obstacle),
             "obstacle_6": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 26.5]), heading=0,
-                                                         obstacle_color=self.color_obstacle),
+                                              obstacle_color=self.color_obstacle),
 
 
 
@@ -215,42 +284,39 @@ class Simulation2:
 
         # initialize ships
         self.ships_database = {
-            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([2.0, 12.0]), ship_heading=0,
-                                        target_pos_scaled=np.array([1.0, 20.0]), ship_color=self.color_ship1,
+            "main_ship": Ship_class.USV(initial_ship_pos_scaled=np.array([2.0, 2.0]), ship_heading=0,
+                                        target_pos_scaled=np.array([22.0, 20.0]), ship_color=self.color_ship1,
                                         guidance_type=2),
-            "ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 14.0]), ship_heading=3.14,
-                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])), ship_color=self.color_ship2, guidance_type=2),
-            "ship2": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 8.0]), ship_heading=3.14,
-                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])),
-                                    ship_color=self.color_ship2, guidance_type=2),
-            "ship3": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 2.0]), ship_heading=3.14,
-                                    target_pos_scaled=np.array(self.rescaler2([2.0, 12.0])),
+            "ship1": Ship_class.USV(initial_ship_pos_scaled=np.array([2.0, 26.0]), ship_heading=0,
+                                    target_pos_scaled=np.array([46.0, 2.0]), ship_color=self.color_ship2, guidance_type=2),
+            "ship2": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 2.0]), ship_heading=3.14,
+                                   target_pos_scaled=np.array([2.0, 26.0]),
+                                   ship_color=self.color_ship2, guidance_type=2),
+            "ship3": Ship_class.USV(initial_ship_pos_scaled=np.array([46.0, 26.0]), ship_heading=3.14,
+                                    target_pos_scaled=np.array([2.0, 2.0]),
                                     ship_color=self.color_ship2, guidance_type=2)
         }
 
         # initialize obstacles
         self.obstacle_database = {
-            "obstacle_1": Obstacle_class.wall(initial_pos_scaled=np.array([12.0, 6.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_2": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 20.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_3": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 6.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_4": Obstacle_class.wall(initial_pos_scaled=np.array([36.0, 20.0]), heading=3.14/2,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_5": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 0.7]), heading=0,
-                                                         obstacle_color=self.color_obstacle),
-            "obstacle_6": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 26.5]), heading=0,
-                                                         obstacle_color=self.color_obstacle),
-
-
-
+            #"obstacle_1": Obstacle_class.wall(initial_pos_scaled=np.array([12.0, 6.0]), heading=3.14 / 2,
+             #                                 obstacle_color=self.color_obstacle),
+            #"obstacle_2": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 20.0]), heading=3.14 / 2,
+             #                                 obstacle_color=self.color_obstacle),
+            #"obstacle_3": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 6.0]), heading=3.14 / 2,
+             #                                 obstacle_color=self.color_obstacle),
+            #"obstacle_4": Obstacle_class.wall(initial_pos_scaled=np.array([36.0, 20.0]), heading=3.14 / 2,
+             #                                 obstacle_color=self.color_obstacle),
+            #"obstacle_5": Obstacle_class.wall(initial_pos_scaled=np.array([20.0, 0.7]), heading=0,
+             #                                 obstacle_color=self.color_obstacle),
+            #"obstacle_6": Obstacle_class.wall(initial_pos_scaled=np.array([28.0, 26.5]), heading=0,
+             #                                 obstacle_color=self.color_obstacle),
         }
         self.font = pygame.font.SysFont('Arial', 24)
 
     def loop(self):
         # set up the game loop
-        target_pos = [1800, 540]
+        target_pos = [1800, 100]
 
         running = True
         while running:
@@ -282,12 +348,13 @@ class Simulation2:
                 if key == "main_ship":
                     ship_obj.move_ship(target_pos_scaled=self.rescaler2(target_pos), sensor_data=sensor_data, log=True)
                 else:
-                    ship_obj.move_ship(target_pos_scaled=[2,12], sensor_data=sensor_data)
+                    ship_obj.move_ship(sensor_data=sensor_data)
 
                 self.draw_ship(ship_obj)
 
-                #if key == "main_ship":
-                self.visualize_vo(ship_obj)
+                if key == "main_ship":
+
+                   self.visualize_vo(ship_obj)
 
             # Draw obstacles
             self.draw_target(target_pos)

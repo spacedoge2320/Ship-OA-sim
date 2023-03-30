@@ -48,7 +48,7 @@ class USV(object):
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
             'rot_thrust_weight': 70.0,
-            'thrust_multiplier': 20.0,
+            'thrust_multiplier': 40.0,
 
             "ship_lat_acc_pos_lim": 0.6,
             "ship_lat_acc_neg_lim": 0.6,
@@ -178,8 +178,10 @@ class USV(object):
     def move_ship(self, sensor_data=None, target_pos_scaled = [20,20], log=False):
 
 
-
-        target_pos = target_pos_scaled
+        if target_pos_scaled == [20,20]:
+            target_pos = self.target_pos
+        else:
+            target_pos = target_pos_scaled
 
 
         self.output_polygon = self.rotate_polygons()
