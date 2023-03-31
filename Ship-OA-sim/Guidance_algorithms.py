@@ -100,8 +100,8 @@ class LOS_VO_guidance():
         self.ship_ax_acc_lim = params['ship_ax_acc_lim']
         self.T_max_thrust = params['T_max_thrust']
         self.T_min_thrust = params['T_min_thrust']
-        self.detection_range = 15
-        self.spd_visual_multiplier = 5
+        self.detection_range = 10
+        self.spd_visual_multiplier = 2.5
 
         self.los = LOS_guidance(params)
         self.vo_polygons = []
@@ -145,39 +145,48 @@ class LOS_VO_guidance():
         target_angle = self.regularize_angle(math.atan2(target_vector[1], target_vector[0]))
 
         # search for valid angle
-        target_speed = 1.5
+        target_speed = 2.0
         self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
-        angle_rad = math.radians(6*self.index_with_lowest_number(self.angle_opacity))
+        angle_rad = math.radians(3*self.index_with_lowest_number(self.angle_opacity))
         angle_variance = self.regularize_angle(angle_rad - ship_heading)
-        if abs(angle_variance) > math.pi * (1/8):
-            target_speed = 2.5
+        if abs(angle_variance) > math.pi * (1 / 8):
+            target_speed = 1.5
             self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
-            angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
+            angle_rad = math.radians(3 * self.index_with_lowest_number(self.angle_opacity))
             angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
-            if abs(angle_variance) > math.pi * (1/8):
-                target_speed = 0.5
+            if abs(angle_variance) > math.pi * (1.5 / 8):
+                target_speed = 1.0
                 self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
-                angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
+                angle_rad = math.radians(3 * self.index_with_lowest_number(self.angle_opacity))
                 angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
-                if abs(angle_variance) > math.pi * (1/8):
-                    target_speed = -0.5
+                if abs(angle_variance) > math.pi * (1 / 4):
+                    target_speed = 0.5
                     self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
-                    angle_rad = math.radians(6 * self.index_with_lowest_number(self.angle_opacity))
+                    angle_rad = math.radians(3 * self.index_with_lowest_number(self.angle_opacity))
                     angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
+                    if abs(angle_variance) > math.pi * (5 / 8):
+                        target_speed = -0.5
+                        self.angle_opacity = self.vo_theta_opacity(target_angle, target_speed)
+                        angle_rad = math.radians(3 * self.index_with_lowest_number(self.angle_opacity))
+                        angle_variance = self.regularize_angle(angle_rad - ship_heading)
 
-        for theta in range(0,60):
+
+        for theta in range(0,120):
             point = np.array(
-                [target_speed * math.cos(math.radians(theta*6)), target_speed * math.sin(math.radians(theta*6))])
+                [self.spd_visual_multiplier*target_speed * math.cos(math.radians(theta*3)), self.spd_visual_multiplier*target_speed * math.sin(math.radians(theta*3))])
 
-            if self.angle_opacity[theta] < np.percentile(self.angle_opacity,10):
-                self.vo_circles.append([self.phys_status["pose"][0]+point,0.05, (255,50,50), 1])
+            if self.angle_opacity[theta] < 1:  #np.percentile(self.angle_opacity,10):
+                self.vo_circles.append([self.phys_status["pose"][0]+point,0.05, (0,255,50), 1])
 
-        self.vo_lines.append([self.phys_status["pose"][0],[self.phys_status["pose"][0][0]+target_speed*math.cos(angle_rad),self.phys_status["pose"][0][1]+target_speed*math.sin(angle_rad)],(0,255,0)])
+        self.vo_lines.append([self.phys_status["pose"][0],[self.phys_status["pose"][0][0]+self.spd_visual_multiplier*target_speed*math.cos(angle_rad),self.phys_status["pose"][0][1]+self.spd_visual_multiplier*target_speed*math.sin(angle_rad)],(0,255,0)])
 
         rotational_mul = angle_variance
+
+        if target_speed < 0:
+            rotational_mul = - rotational_mul
 
         if not (angle_variance >= -10 and angle_variance <= 10):
             angle_variance = 0
@@ -223,7 +232,6 @@ class LOS_VO_guidance():
         circle = [ship_pos, self.detection_range, circle_color, line_width]  # object circle position
         self.vo_circles.append(circle)  # circle representing collision distance of the object
 
-
         if self.filtered_objects_angle != None:
             for key, object in self.filtered_objects_angle.items():
 
@@ -241,7 +249,7 @@ class LOS_VO_guidance():
                 rel_spd = np.linalg.norm(object[0].phys_status["velocity"][0]-ship_vel)
 
                 if object_distance < 0.1:  # for avoiding divide by zero error
-                    object_distance = 1
+                    object_distance = 0.1
 
 
                 start_rad = object[1]
@@ -262,31 +270,34 @@ class LOS_VO_guidance():
 
         # when search spd = max_spd
         spd_to_search
-        angle_opacity = np.linspace(start=0, stop=60, num=60, endpoint=False)
+        angle_opacity = np.linspace(start=0, stop=120, num=120, endpoint=False)
 
-        for theta in range(0,60):
+        for theta in range(0,120):
 
-            delta_angle = target_angle - math.radians(theta*6)
+            delta_angle = target_angle - math.radians(theta*3)
 
             while delta_angle >= 1 * math.pi:
                 delta_angle = delta_angle - 2 * math.pi
             while delta_angle <= -1 * math.pi:
                 delta_angle = delta_angle + 2 * math.pi
 
-            angle_diff_opacity = (abs(delta_angle/(math.pi))**2)*(50/80)
+            angle_diff_opacity = (abs(delta_angle/(math.pi)))*(30/80)
 
             angle_opacity[theta] = angle_diff_opacity
 
         for vo_cone in self.vo_cones:
-            for theta in range(0, 60):
-                point = np.array([spd_to_search*math.cos(math.radians(theta*6)), spd_to_search*math.sin(math.radians(theta*6))])
+            for theta in range(0, 120):
+                point = np.array([self.spd_visual_multiplier*spd_to_search*math.cos(math.radians(theta*3)), self.spd_visual_multiplier**spd_to_search*math.sin(math.radians(theta*3))])
 
                 opacity = self.vo_cone_collision_detector(point + self.phys_status["pose"][0], vo_cone)
 
                 if opacity > 1/5:
-                    opacity = 1000
+                    opacity = 100
 
-                angle_opacity[theta] = angle_opacity[theta]+(opacity**2)*50
+                if opacity <1/10:
+                    opacity = 0
+
+                angle_opacity[theta] = angle_opacity[theta]+(opacity**2)*10
 
         return angle_opacity
 
@@ -363,11 +374,14 @@ class LOS_VO_guidance():
             # print(key)
             object_pose = object.phys_status["pose"]
             object_vector = (object_pose[0] - ship_pose[0])
+
+            if object_pose[0][1] == ship_pose[0][1] and object_pose[0][0] == ship_pose[0][0]:
+                continue
             object_distance = (np.linalg.norm(object_vector))
             # print(key, object_vector)
 
             # check if polygon is within detection range
-            if object_distance > self.detection_range*1.5:
+            if object_distance > self.detection_range*1.1:
                 continue
 
                 # print(poly_points)
@@ -376,8 +390,8 @@ class LOS_VO_guidance():
                 continue
             [max_angle_point, min_angle_point], [start_angle, end_angle], self.outer_polygon,closest_distance = N
 
-            #self.vo_lines.append([self.phys_status["pose"][0], max_angle_point,(255, 153, 251)])
-            #self.vo_lines.append([self.phys_status["pose"][0], min_angle_point,(255, 153, 251)])
+            self.vo_lines.append([self.phys_status["pose"][0], max_angle_point,(255, 153, 251)])
+            self.vo_lines.append([self.phys_status["pose"][0], min_angle_point,(255, 153, 251)])
             if closest_distance <= self.detection_range:
 
 
@@ -478,8 +492,8 @@ class LOS_VO_guidance():
         max_angle_index = angles.index(max_angle)
         min_angle_index = angles.index(min_angle)
 
-        max_angle = min(max(angles), math.pi*(3/4))
-        min_angle = max(min(angles), -math.pi*(3/4))
+        max_angle = min(max(angles), math.pi*(3/4))+math.pi/20
+        min_angle = max(min(angles), -math.pi*(3/4))-math.pi/20
 
         max_angle_point = outer_polygon[max_angle_index]
         min_angle_point = outer_polygon[min_angle_index]
@@ -554,10 +568,10 @@ class LOS_VO_guidance():
         """
         Determines whether a point is inside a circle section
         """
-        origin,[start_angle, end_angle], radius = cone
+        origin, [start_angle, end_angle], radius = cone
 
         if radius < 0.5:
-            radius = 0.5
+            radius = 1
 
         # Calculate angle of point relative to circle origin
         point_angle = math.atan2(point[1] - origin[1], point[0] - origin[0])
@@ -577,11 +591,12 @@ class LOS_VO_guidance():
             inside_angle = end_angle + 2*math.pi - start_angle
 
         if result == True:
-            time_till_collision = radius / (math.dist(point, origin)/10)
+            time_till_collision = radius / (math.dist(point, origin)/5)
 
-            if radius < 2:
+            print(1)
+
+            if radius < 4:
                 return 1
-
 
             if inside_angle > math.pi:
                 return 1
@@ -679,8 +694,6 @@ class LOS_VO_guidance():
             return [closest_point, -1]
         else:
             return [closest_point, 1]
-
-
 
     def is_inside_polygon(self, point, polygon_vertices):
         # Create a list of tuples containing the x,y coordinates of the polygon vertices

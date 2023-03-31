@@ -36,6 +36,10 @@ class USV(object):
         self.T_min_thrust = -50
         self.T2CL_dist = 0.5
         self.cmd_vel = [[0,0],0]
+        self.vo_circles = None
+        self.vo_cones = None
+        self.vo_lines = None
+        self.vo_polygons = None
 
         # controller settings
         controller_params = {
@@ -47,9 +51,8 @@ class USV(object):
             'Kd_ang': 0.0,
             'MAX_THRUST': self.T_max_thrust,
             'MIN_THRUST': self.T_min_thrust,
-            'rot_thrust_weight': 70.0,
+            'rot_thrust_weight': 120.0,
             'thrust_multiplier': 40.0,
-
             "ship_lat_acc_pos_lim": 0.6,
             "ship_lat_acc_neg_lim": 0.6,
             "ship_ax_acc_lim": 0.2,
@@ -201,7 +204,6 @@ class USV(object):
                 # cmd_vel = [np.array([-1, 0]), 0]
             elif self.guidance_type ==2:
                 self.cmd_vel = self.guidance.ship_los_vo_guidance(self.phys_status, output_polygon=self.output_polygon, target_pos=target_pos, sensor_data=sensor_data, dt=1 / 60)
-                #self.collision_cone = self.guidance.collision_cone
                 self.vo_circles = self.guidance.vo_circles
                 self.vo_cones = self.guidance.vo_cones
                 self.vo_lines = self.guidance.vo_lines
@@ -213,7 +215,6 @@ class USV(object):
         self.thrust = self.controller.pid_tune_velocity(self.phys_status, cmd_vel=self.cmd_vel, log=log)
 
         # thrust_jerk_limiter
-
         thrust_range = self.T_max_thrust - self.T_min_thrust
         max_thrust_jerk = thrust_range/1
 
@@ -230,9 +231,6 @@ class USV(object):
 
         # ship position integrator
         self.ship_position_integrator(dt=1 / 60)  # this writes pose into self.ship_phys_status
-
-        # path generator
-        #tail_pose = self.phys_status["pose"][0] - np.array([math.cos(self.phys_status["pose"][1]),  math.sin(self.phys_status["pose"][1])])
 
         if self.ticks % 10 == 0:
             self.ship_pos_list.append(self.phys_status["pose"][0].tolist())
